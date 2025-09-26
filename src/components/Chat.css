@@ -37,10 +37,11 @@ html, body {
 ============================ */
 .sidebar {
   width: 260px;
-  background: #111217; /* color del primer CSS */
+  background: #111217;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #2a2a2a; /* del primer CSS */
+  border-right: 1px solid #2a2a2a;
+  position: relative;
 }
 
 .sidebar-header {
@@ -55,20 +56,17 @@ html, body {
   border-bottom: 1px solid #222;
 }
 
-.sidebar-header button,
-.new-chat-btn {
+.sidebar-header button {
   background: #4f46e5;
   border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
   color: white;
   cursor: pointer;
-  font-size: 14px;
   transition: background 0.2s ease;
 }
 
-.sidebar-header button:hover,
-.new-chat-btn:hover {
+.sidebar-header button:hover {
   background: #4338ca;
 }
 
@@ -89,6 +87,7 @@ html, body {
   color: #ddd;
   background: #1f222b;
   transition: background 0.2s ease;
+  position: relative;
 }
 
 .sidebar-chat:hover {
@@ -96,21 +95,79 @@ html, body {
 }
 
 .sidebar-chat.active {
-  background: #2f3340; /* mantiene distribución del primer CSS */
+  background: #2f3340;
   font-weight: bold;
   color: #fff;
 }
 
-.rename-btn {
-  background: transparent;
-  border: none;
-  color: #aaa;
-  cursor: pointer;
-  font-size: 14px;
+.chat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
-.rename-btn:hover {
+.chat-rename-input {
+  background: #2b2f3a;
   color: #fff;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  width: 100%;
+  outline: none;
+}
+
+/* Dropdown menú */
+.chat-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.chat-menu:hover {
+  color: #fff;
+}
+
+.chat-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 6px;
+  background: #1a1d24;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  min-width: 140px;
+}
+
+.chat-menu-dropdown button {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 8px 12px;
+  color: #ddd;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.chat-menu-dropdown button:hover {
+  background: #2a2d34;
+  color: #fff;
+}
+
+.chat-menu-dropdown .delete-btn {
+  color: #f87171;
+}
+
+.chat-menu-dropdown .delete-btn:hover {
+  background: #3b1f1f;
 }
 
 /* ============================
@@ -218,11 +275,12 @@ html, body {
   background: #4f46e5;
   color: #fff;
   border: none;
-  padding: 12px 15px;
+  padding: 10px 12px;
   margin-left: 8px;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
   transition: background 0.3s ease, transform 0.1s ease;
 }
 
@@ -235,28 +293,6 @@ html, body {
   background: #3b3b3b;
   cursor: not-allowed;
 }
-
-
-
-.continue-btn {
-  margin-top: 8px;
-  display: inline-block;
-  opacity: 0.5;
-  background: rgba(79, 70, 229, 0.6);
-  color: #fff;
-  border: none;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.continue-btn:hover {
-  opacity: 1;
-  background: rgba(67, 56, 202, 0.9);
-}
-
 
 /* ============================
    RESPONSIVE

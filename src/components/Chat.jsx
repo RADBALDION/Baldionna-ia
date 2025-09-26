@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { askDeepSeekStream } from "../lib/api";
 import "./Chat.css";
+import { Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send } from "lucide-react";
 
 export default function Chat() {
   const [chats, setChats] = useState([]);
@@ -10,11 +11,12 @@ export default function Chat() {
   const [editingId, setEditingId] = useState(null);
   const [newName, setNewName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(null);
 
   const listRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Cargar chats desde localStorage al iniciar
+  // Cargar chats desde localStorage
   useEffect(() => {
     const saved = localStorage.getItem("chats");
     if (saved) {
@@ -33,7 +35,7 @@ export default function Chat() {
     };
   }, []);
 
-  // Autoscroll en mensajes
+  // Autoscroll
   useEffect(() => {
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight + 200;
@@ -47,7 +49,7 @@ export default function Chat() {
       id,
       name: "Nuevo chat",
       messages: [
-        { sender: "bot", text: "🔵 Hola, soy Baldionna-ai. ¿En qué te ayudo hoy?" }
+        { sender: "bot", text: "Hola, soy Baldionna-ai. ¿En qué te ayudo hoy?" }
       ]
     };
     const updatedChats = [newChat, ...chats];
@@ -56,7 +58,7 @@ export default function Chat() {
     localStorage.setItem("chats", JSON.stringify(updatedChats));
   };
 
-  // Renombrar chat
+  // Renombrar
   const renameChat = (id, newName) => {
     const updatedChats = chats.map((chat) =>
       chat.id === id ? { ...chat, name: newName } : chat
@@ -65,7 +67,7 @@ export default function Chat() {
     localStorage.setItem("chats", JSON.stringify(updatedChats));
   };
 
-  // Eliminar chat
+  // Eliminar
   const deleteChat = (id) => {
     const updatedChats = chats.filter((chat) => chat.id !== id);
     setChats(updatedChats);
@@ -179,8 +181,8 @@ export default function Chat() {
           <div className="sidebar-header">
             <h4>BALDIONNA-ai</h4>
             <div className="flex gap-2">
-              <button onClick={createChat}>+ Nuevo</button>
-              <button onClick={() => setSidebarOpen(false)}>⬅️</button>
+              <button onClick={createChat}><Plus size={18} /></button>
+              <button onClick={() => setSidebarOpen(false)}><ArrowLeft size={18} /></button>
             </div>
           </div>
           <div className="sidebar-chats">
@@ -204,32 +206,44 @@ export default function Chat() {
                         setEditingId(null);
                       }
                     }}
-                    className="bg-gray-800 text-white px-2 py-1 w-full rounded"
+                    className="chat-rename-input"
                     autoFocus
                   />
                 ) : (
-                  <div className="flex justify-between items-center w-full">
+                  <div className="chat-row">
                     <span>{chat.name}</span>
-                    <div className="flex gap-1">
-                      <button
-                        className="rename-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingId(chat.id);
-                          setNewName(chat.name);
-                        }}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="rename-btn text-red-500 hover:text-red-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                      >
-                        ❌
-                      </button>
+                    <div
+                      className="chat-menu"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(menuOpen === chat.id ? null : chat.id);
+                      }}
+                    >
+                      <MoreVertical size={18} />
+                      {menuOpen === chat.id && (
+                        <div className="chat-menu-dropdown">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingId(chat.id);
+                              setNewName(chat.name);
+                              setMenuOpen(null);
+                            }}
+                          >
+                            <Edit2 size={14} /> Renombrar
+                          </button>
+                          <button
+                            className="delete-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteChat(chat.id);
+                              setMenuOpen(null);
+                            }}
+                          >
+                            <Trash2 size={14} /> Eliminar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -239,10 +253,10 @@ export default function Chat() {
         </div>
       )}
 
-      {/* Botón para abrir sidebar si está cerrada */}
+      {/* Botón para abrir sidebar */}
       {!sidebarOpen && (
         <button
-          className="absolute top-4 left-2 bg-gray-800 text-white px-2 py-1 rounded z-50"
+          className="sidebar-toggle"
           onClick={() => setSidebarOpen(true)}
         >
           ➡️
@@ -252,7 +266,7 @@ export default function Chat() {
       {/* Chat principal */}
       <div className="chat-container">
         <div className="chat-header">
-          <div className="logo">🔵 {currentChat?.name || "Nuevo Chat"}</div>
+          <div className="logo">{currentChat?.name || "Nuevo Chat"}</div>
         </div>
 
         <div ref={listRef} className="chat-box" aria-live="polite">
@@ -277,7 +291,7 @@ export default function Chat() {
             disabled={isTyping}
           />
           <button onClick={handleSend} disabled={isTyping}>
-            Enviar
+            <Send size={18} />
           </button>
         </div>
       </div>
