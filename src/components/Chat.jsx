@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { askDeepSeekStream } from "../lib/api";
 import "./Chat.css";
-import { Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send } from "lucide-react";
+import { 
+  Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
+  Settings, Sun, Moon 
+} from "lucide-react";
 
 export default function Chat() {
   const [chats, setChats] = useState([]);
@@ -13,20 +16,49 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null);
 
+  // 👉 Estado único de configuración
+  const [settings, setSettings] = useState({
+    theme: "light",
+    inputPosition: "top",
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const listRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Cargar chats desde localStorage
+  // Cerrar menús si hago click fuera
   useEffect(() => {
-    const saved = localStorage.getItem("chats");
-    if (saved) {
-      const parsed = JSON.parse(saved);
+    const handleClick = (e) => {
+      if (!e.target.closest(".chat-menu") && !e.target.closest(".chat-menu-dropdown")) {
+        setMenuOpen(null);
+      }
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, []);
+
+  // Cargar chats y configuración desde localStorage
+  useEffect(() => {
+    const savedChats = localStorage.getItem("chats");
+    if (savedChats) {
+      const parsed = JSON.parse(savedChats);
       setChats(parsed);
       if (parsed.length > 0) setActiveChat(parsed[0].id);
     } else {
       createChat();
     }
+
+    const savedSettings = localStorage.getItem("settings");
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
+    }
   }, []);
+
+  // Guardar configuración y aplicar tema
+  useEffect(() => {
+    localStorage.setItem("settings", JSON.stringify(settings));
+    document.body.setAttribute("data-theme", settings.theme);
+  }, [settings]);
 
   // Limpiar peticiones al desmontar
   useEffect(() => {
@@ -92,9 +124,17 @@ export default function Chat() {
     return html;
   };
 
-  // Enviar mensaje
+  // Enviar mensaje o detener
   const handleSend = async () => {
-    if (!input.trim() || isTyping || !activeChat) return;
+    if (isTyping) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    if (!input.trim() || !activeChat) return;
 
     const text = input.trim();
     setInput("");
@@ -174,7 +214,7 @@ export default function Chat() {
   const currentChat = chats.find((c) => c.id === activeChat);
 
   return (
-    <div className="chat-app">
+    <div className={`chat-app ${settings.theme}`}>
       {/* Sidebar */}
       {sidebarOpen && (
         <div className="sidebar">
@@ -250,6 +290,13 @@ export default function Chat() {
               </div>
             ))}
           </div>
+
+          {/* Configuración */}
+          <div className="sidebar-footer">
+            <button onClick={() => setSettingsOpen(true)}>
+              <Settings size={18} /> Configuración
+            </button>
+          </div>
         </div>
       )}
 
@@ -265,9 +312,22 @@ export default function Chat() {
 
       {/* Chat principal */}
       <div className="chat-container">
-        <div className="chat-header">
-          <div className="logo">{currentChat?.name || "Nuevo Chat"}</div>
-        </div>
+        {/* Barra de entrada dinámica */}
+        {settings.inputPosition === "top" && (
+          <div className="chat-input top-input">
+            <input
+              type="text"
+              placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+              disabled={isTyping && !input}
+            />
+            <button onClick={handleSend}>
+              {isTyping ? <Square size={18} /> : <Send size={18} />}
+            </button>
+          </div>
+        )}
 
         <div ref={listRef} className="chat-box" aria-live="polite">
           {currentChat?.messages.map((m, i) => (
@@ -281,20 +341,65 @@ export default function Chat() {
           ))}
         </div>
 
-        <div className="chat-input">
-          <input
-            type="text"
-            placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-            disabled={isTyping}
-          />
-          <button onClick={handleSend} disabled={isTyping}>
-            <Send size={18} />
-          </button>
-        </div>
+        {settings.inputPosition === "bottom" && (
+          <div className="chat-input bottom-input">
+            <input
+              type="text"
+              placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+              disabled={isTyping && !input}
+            />
+            <button onClick={handleSend}>
+              {isTyping ? <Square size={18} /> : <Send size={18} />}
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Modal configuración */}
+      {settingsOpen && (
+        <div className="settings-modal">
+          <div className="settings-content">
+            <h3>Configuración</h3>
+
+            {/* Tema */}
+            <div className="settings-row">
+              <span>Tema</span>
+              <button
+                onClick={() =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    theme: prev.theme === "light" ? "dark" : "light",
+                  }))
+                }
+              >
+                {settings.theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+                {settings.theme === "light" ? "Modo oscuro" : "Modo claro"}
+              </button>
+            </div>
+
+            {/* Posición barra */}
+            <div className="settings-row">
+              <span>Posición de barra de texto</span>
+              <select
+                value={settings.inputPosition}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, inputPosition: e.target.value }))
+                }
+              >
+                <option value="top">Arriba</option>
+                <option value="bottom">Abajo</option>
+              </select>
+            </div>
+
+            <div className="settings-footer">
+              <button onClick={() => setSettingsOpen(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
