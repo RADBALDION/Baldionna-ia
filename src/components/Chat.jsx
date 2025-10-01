@@ -221,8 +221,8 @@ export default function Chat() {
           <div className="sidebar-header">
             <h4>BALDIONNA-ai</h4>
             <div className="flex gap-2">
-              <button onClick={createChat}><Plus size={18} /></button>
-              <button onClick={() => setSidebarOpen(false)}><ArrowLeft size={18} /></button>
+              <button onClick={createChat}><Plus size={12} /></button>
+              <button onClick={() => setSidebarOpen(false)}><ArrowLeft size={12} /></button>
             </div>
           </div>
           <div className="sidebar-chats">
