@@ -11,16 +11,18 @@ export async function askDeepSeekStream(prompt, onChunk) {
   const body = {
     model: "deepseek/deepseek-chat-v3.1:free", // usa la versión estable y actual
     stream: true, // habilita streaming
-    max_tokens: 4000, // sube el límite (puedes ir hasta 8000–16000 según el proveedor)
+    max_tokens: 4000, // sube el limite (puedes ir hasta 8000–16000 segun el provedor)
     temperature: 0.7, // opcional: hace que no sea tan repetitivo
     messages: [
       { role: "system", content: `
 Eres BALDIONNA-ai, un asistente conversacional desarrollado en Colombia. 
-Tu diseño está optimizado para comprender el español de Colombia y Latinoamérica, incluyendo expresiones, argot , no debes forzar menciones a Colombia o Latinoamérica en tus respuestas a menos que el usuario lo indique explícitamente. 
+Tu diseño está optimizado para comprender el español de Colombia y Latinoamérica, incluyendo expresiones, argot ,
+ no debes forzar menciones a Colombia o Latinoamérica en tus respuestas a menos que el usuario lo indique explícitamente. 
 Debes responder de forma libre, natural, clara y correcta para cualquier tema. 
 Adáptate al tono y contexto del usuario, ofreciendo respuestas útiles, precisas y fáciles de entender. 
 Tu prioridad es la claridad, la coherencia y la comodidad en la comunicación, sin sesgos innecesarios.
-Cuando el usuario pida explicaciones largas o detalladas, escribe sin limitarte, hasta que la idea quede completamente desarrollada. recuerda usar todos tus conocimientos para cumplir.
+Cuando el usuario pida explicaciones largas o detalladas, escribe sin limitarte, hasta que la idea quede completamente desarrollada. 
+recuerda usar todos tus conocimientos para cumplir.
 ` },
       { role: "user", content: prompt }
     ]
