@@ -16,7 +16,7 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null);
 
-  // 👉 Estado único de configuración
+  // Estado único de configuración
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
@@ -25,6 +25,10 @@ export default function Chat() {
 
   const listRef = useRef(null);
   const abortControllerRef = useRef(null);
+
+  // API Keys desde variables de entorno
+  const SERPER_API_KEY = import.meta.env.VITE_SERPER_API_KEY;
+  const APP_NAME = import.meta.env.VITE_APP_NAME || "BALDIONNA-ai";
 
   // Cerrar menús si hago click fuera
   useEffect(() => {
@@ -200,7 +204,7 @@ export default function Chat() {
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
-            updated[botIndex] = { sender: "bot", text: "⚠️ Error al conectar con la API." };
+            updated[botIndex] = { sender: "bot", text: "❌ Error al conectar con la API." };
             return { ...chat, messages: updated };
           }
           return chat;
@@ -208,6 +212,124 @@ export default function Chat() {
       );
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  // BUSQUEDA CON SERPER (YA FUNCIONAL)
+  const handleSearch = async () => {
+    if (!input.trim() || !activeChat) return;
+
+    const query = input.trim();
+    console.log("🔍 Iniciando búsqueda con Serper:", query);
+
+    // Agrega mensajes al chat
+    const userMessage = { sender: "user", text: query };
+    const searchingMessage = { sender: "bot", text: "🔍 Buscando información en tiempo real..." };
+
+    let updatedChats = chats.map((chat) =>
+      chat.id === activeChat
+        ? { ...chat, messages: [...chat.messages, userMessage, searchingMessage] }
+        : chat
+    );
+    setChats(updatedChats);
+    localStorage.setItem("chats", JSON.stringify(updatedChats));
+
+    const botIndex = updatedChats.find((c) => c.id === activeChat).messages.length - 1;
+
+    try {
+      console.log("📡 Consultando Serper API...");
+      
+      const response = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": SERPER_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          q: query,
+          gl: "es", // España
+          hl: "es"  // Español
+        })
+      });
+
+      console.log("📊 Status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log("📦 Datos recibidos de Serper:", data);
+
+      // Procesar resultados
+      let resultText = "No se encontraron resultados relevantes para tu búsqueda.";
+      
+      if (data.organic && data.organic.length > 0) {
+        const bestResult = data.organic[0];
+        resultText = `**${bestResult.title}**\n\n${bestResult.snippet}`;
+        
+        if (bestResult.link) {
+          resultText += `\n\n🔗 *Fuente: ${bestResult.link}*`;
+        }
+        
+        // Si hay answerBox (respuesta directa), usarla
+        if (data.answerBox?.snippet) {
+          resultText = `📋 **Respuesta directa:** ${data.answerBox.snippet}\n\n---\n${resultText}`;
+        }
+      } else if (data.answerBox?.snippet) {
+        resultText = `📋 **Respuesta encontrada:** ${data.answerBox.snippet}`;
+      } else if (data.knowledgeGraph?.description) {
+        resultText = `📚 **Información:** ${data.knowledgeGraph.description}`;
+      }
+
+      console.log("✅ Resultado final:", resultText);
+
+      // Actualizar chat
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.id === activeChat) {
+            const updated = [...chat.messages];
+            updated[botIndex] = { 
+              sender: "bot", 
+              text: resultText 
+            };
+            return { ...chat, messages: updated };
+          }
+          return chat;
+        })
+      );
+      
+      localStorage.setItem("chats", JSON.stringify(chats));
+
+    } catch (err) {
+      console.error("❌ Error en búsqueda Serper:", err);
+      
+      let errorMessage = "Error al realizar la búsqueda. ";
+      
+      if (err.message.includes("401")) {
+        errorMessage += "API Key inválida o falta de créditos.";
+      } else if (err.message.includes("429")) {
+        errorMessage += "Límite de requests excedido.";
+      } else if (err.message.includes("Failed to fetch")) {
+        errorMessage += "Problema de conexión a internet.";
+      } else {
+        errorMessage += err.message;
+      }
+
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.id === activeChat) {
+            const updated = [...chat.messages];
+            updated[botIndex] = { 
+              sender: "bot", 
+              text: `❌ ${errorMessage}` 
+            };
+            return { ...chat, messages: updated };
+          }
+          return chat;
+        })
+      );
     }
   };
 
@@ -219,7 +341,7 @@ export default function Chat() {
       {sidebarOpen && (
         <div className="sidebar">
           <div className="sidebar-header">
-            <h4>BALDIONNA-ai</h4>
+            <h4>{APP_NAME}</h4>
             <div className="flex gap-2">
               <button onClick={createChat}><Plus size={12} /></button>
               <button onClick={() => setSidebarOpen(false)}><ArrowLeft size={12} /></button>
@@ -306,7 +428,7 @@ export default function Chat() {
           className="sidebar-toggle"
           onClick={() => setSidebarOpen(true)}
         >
-          ➡️
+          ☰
         </button>
       )}
 
@@ -320,11 +442,24 @@ export default function Chat() {
               placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+              onKeyDown={(e) => { 
+                if (e.key === "Enter") handleSend(); 
+              }}
               disabled={isTyping && !input}
             />
-            <button onClick={handleSend}>
+            <button 
+              onClick={handleSend}
+              disabled={!input.trim() && !isTyping}
+            >
               {isTyping ? <Square size={18} /> : <Send size={18} />}
+            </button>
+            <button
+              onClick={handleSearch}
+              title="Buscar con Serper"
+              disabled={!input.trim() || isTyping}
+              style={{ marginLeft: 4 }}
+            >
+              🔍
             </button>
           </div>
         )}
@@ -348,11 +483,24 @@ export default function Chat() {
               placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+              onKeyDown={(e) => { 
+                if (e.key === "Enter") handleSend(); 
+              }}
               disabled={isTyping && !input}
             />
-            <button onClick={handleSend}>
+            <button 
+              onClick={handleSend}
+              disabled={!input.trim() && !isTyping}
+            >
               {isTyping ? <Square size={18} /> : <Send size={18} />}
+            </button>
+            <button
+              onClick={handleSearch}
+              title="Buscar con Serper"
+              disabled={!input.trim() || isTyping}
+              style={{ marginLeft: 4 }}
+            >
+              🔍
             </button>
           </div>
         )}
