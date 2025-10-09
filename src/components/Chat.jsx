@@ -15,6 +15,7 @@ export default function Chat() {
   const [newName, setNewName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null);
+  const [isScraping, setIsScraping] = useState(false);
 
   // Estado único de configuración
   const [settings, setSettings] = useState({
@@ -215,29 +216,89 @@ export default function Chat() {
     }
   };
 
-  // BUSQUEDA CON SERPER (YA FUNCIONAL)
+  // SCRAPING CON JINA AI - CON TU API KEY
+  const scrapeWithJinaAI = async (url) => {
+    try {
+      console.log("🔍 Scraping con Jina AI:", url);
+      const response = await fetch(`https://r.jina.ai/${url}`, {
+        headers: {
+          'Authorization': 'Bearer jina_8b9cf0c3d9b947419d845f92d52552f43v7gpNPDJJUxA1HuXLINb7Q9lvLr',
+          'X-With-Generated-Alt': 'true'
+        }
+      });
+      
+      if (response.ok) {
+        const content = await response.text();
+        return content
+          .replace(/\s+/g, ' ')
+          .substring(0, 4000)
+          .trim();
+      }
+      return null;
+    } catch (error) {
+      console.error("Error Jina AI:", error);
+      return null;
+    }
+  };
+
+  // SCRAPING CON CORS PROXY - ALTERNATIVA GRATUITA
+  const scrapeWithCorsProxy = async (url) => {
+    try {
+      console.log("🔍 Scraping con CORS proxy:", url);
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      
+      const response = await fetch(proxyUrl);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const html = data.contents;
+        
+        // Extraer texto del HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        let content = tempDiv.textContent || tempDiv.innerText || "";
+        
+        return content
+          .replace(/\s+/g, ' ')
+          .substring(0, 3000)
+          .trim();
+      }
+      return null;
+    } catch (error) {
+      console.error("Error CORS proxy:", error);
+      return null;
+    }
+  };
+
+  // Función para delay
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // BUSQUEDA HÍBRIDA MEJORADA
   const handleSearch = async () => {
     if (!input.trim() || !activeChat) return;
 
     const query = input.trim();
-    console.log("🔍 Iniciando búsqueda con Serper:", query);
+    console.log("🔍 Iniciando búsqueda híbrida:", query);
 
     // Agrega mensajes al chat
     const userMessage = { sender: "user", text: query };
-    const searchingMessage = { sender: "bot", text: "🔍 Buscando información en tiempo real..." };
+    const analyzingMessage = { sender: "bot", text: "🔍 Analizando y recopilando información..." };
 
     let updatedChats = chats.map((chat) =>
       chat.id === activeChat
-        ? { ...chat, messages: [...chat.messages, userMessage, searchingMessage] }
+        ? { ...chat, messages: [...chat.messages, userMessage, analyzingMessage] }
         : chat
     );
     setChats(updatedChats);
     localStorage.setItem("chats", JSON.stringify(updatedChats));
 
     const botIndex = updatedChats.find((c) => c.id === activeChat).messages.length - 1;
+    setIsScraping(true);
 
     try {
-      console.log("📡 Consultando Serper API...");
+      // FASE 1: Búsqueda con Serper
+      console.log("📡 Fase 1: Consultando Serper API...");
       
       const response = await fetch("https://google.serper.dev/search", {
         method: "POST",
@@ -247,89 +308,194 @@ export default function Chat() {
         },
         body: JSON.stringify({
           q: query,
-          gl: "es", // España
-          hl: "es"  // Español
+          gl: "es",
+          hl: "es",
+          num: 8
         })
       });
 
-      console.log("📊 Status:", response.status);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
       const data = await response.json();
       console.log("📦 Datos recibidos de Serper:", data);
 
-      // Procesar resultados
-      let resultText = "No se encontraron resultados relevantes para tu búsqueda.";
+      // FASE 2: Delay de análisis (10-12 segundos)
+      console.log("⏳ Fase 2: Delay de análisis...");
+      for (let i = 1; i <= 12; i++) {
+        await delay(1000);
+        const progressText = `🔍 Analizando y recopilando información... ${i}/12 segundos`;
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id === activeChat) {
+              const updated = [...chat.messages];
+              updated[botIndex] = { 
+                sender: "bot", 
+                text: progressText 
+              };
+              return { ...chat, messages: updated };
+            }
+            return chat;
+          })
+        );
+      }
+
+      // FASE 3: Scraping de contenido
+      console.log("🌐 Fase 3: Realizando scraping...");
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.id === activeChat) {
+            const updated = [...chat.messages];
+            updated[botIndex] = { 
+              sender: "bot", 
+              text: "📖 Extrayendo contenido completo de las fuentes..." 
+            };
+            return { ...chat, messages: updated };
+          }
+          return chat;
+        })
+      );
+
+      let scrapedContent = "";
       
       if (data.organic && data.organic.length > 0) {
-        const bestResult = data.organic[0];
-        resultText = `**${bestResult.title}**\n\n${bestResult.snippet}`;
-        
-        if (bestResult.link) {
-          resultText += `\n\n🔗 *Fuente: ${bestResult.link}*`;
+        // Tomar los 3-4 mejores resultados para scraping
+        const scrapingTargets = data.organic.slice(0, 4);
+        const successfulScrapes = [];
+
+        for (let i = 0; i < scrapingTargets.length; i++) {
+          const result = scrapingTargets[i];
+          
+          // Hacer scraping del contenido con Jina AI
+          let fullContent = await scrapeWithJinaAI(result.link);
+          
+          // Si Jina AI falla, intentar con CORS proxy
+          if (!fullContent) {
+            fullContent = await scrapeWithCorsProxy(result.link);
+          }
+          
+          if (fullContent && fullContent.length > 200) {
+            successfulScrapes.push({
+              title: result.title,
+              snippet: result.snippet,
+              content: fullContent,
+              link: result.link,
+              date: result.date
+            });
+          }
         }
+
+        // Construir prompt para DeepSeek
+        scrapedContent = `Por favor, analiza y resume las siguientes noticias sobre "${query}":\n\n`;
         
-        // Si hay answerBox (respuesta directa), usarla
-        if (data.answerBox?.snippet) {
-          resultText = `📋 **Respuesta directa:** ${data.answerBox.snippet}\n\n---\n${resultText}`;
+        successfulScrapes.forEach((item, index) => {
+          scrapedContent += `--- NOTICIA ${index + 1} ---\n`;
+          scrapedContent += `Título: ${item.title}\n`;
+          scrapedContent += `Resumen original: ${item.snippet}\n`;
+          scrapedContent += `Contenido completo: ${item.content.substring(0, 1500)}\n`;
+          scrapedContent += `Fuente: ${item.link}\n`;
+          if (item.date) scrapedContent += `Fecha: ${item.date}\n`;
+          scrapedContent += `\n`;
+        });
+
+        // Agregar otros resultados como contexto
+        if (data.organic.length > successfulScrapes.length) {
+          scrapedContent += `--- OTRAS FUENTES RELEVANTES ---\n`;
+          data.organic.slice(successfulScrapes.length, 8).forEach((result, index) => {
+            scrapedContent += `${index + 1}. ${result.title}\n`;
+            scrapedContent += `Resumen: ${result.snippet}\n`;
+            scrapedContent += `Enlace: ${result.link}\n\n`;
+          });
         }
-      } else if (data.answerBox?.snippet) {
-        resultText = `📋 **Respuesta encontrada:** ${data.answerBox.snippet}`;
-      } else if (data.knowledgeGraph?.description) {
-        resultText = `📚 **Información:** ${data.knowledgeGraph.description}`;
+
+      } else {
+        scrapedContent = `No se encontraron resultados específicos para "${query}". Por favor, intenta con una búsqueda más concreta.`;
       }
 
-      console.log("✅ Resultado final:", resultText);
-
-      // Actualizar chat
+      // FASE 4: Procesar con DeepSeek
+      console.log("🤖 Fase 4: Procesando con DeepSeek...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: resultText 
+              text: "🧠 Procesando y organizando la información..." 
             };
             return { ...chat, messages: updated };
           }
           return chat;
         })
       );
-      
-      localStorage.setItem("chats", JSON.stringify(chats));
+
+      // Preparar el mensaje para DeepSeek
+      const deepSeekPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
+
+      // Limpiar el mensaje actual y preparar para streaming
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.id === activeChat) {
+            const updated = [...chat.messages];
+            updated[botIndex] = { 
+              sender: "bot", 
+              text: "" 
+            };
+            return { ...chat, messages: updated };
+          }
+          return chat;
+        })
+      );
+
+      // Usar DeepSeek para procesar y mostrar el resultado
+      setIsTyping(true);
+
+      if (abortControllerRef.current) {
+        try { abortControllerRef.current.abort(); } catch (e) {}
+      }
+      abortControllerRef.current = new AbortController();
+
+      await askDeepSeekStream(
+        deepSeekPrompt,
+        (chunk) => {
+          setChats((prevChats) => {
+            const newChats = prevChats.map((chat) => {
+              if (chat.id === activeChat) {
+                const updated = [...chat.messages];
+                updated[botIndex] = {
+                  sender: "bot",
+                  text: (updated[botIndex]?.text || "") + chunk
+                };
+                return { ...chat, messages: updated };
+              }
+              return chat;
+            });
+            localStorage.setItem("chats", JSON.stringify(newChats));
+            return newChats;
+          });
+        },
+        abortControllerRef.current.signal
+      );
+
+      console.log("✅ Búsqueda híbrida completada");
 
     } catch (err) {
-      console.error("❌ Error en búsqueda Serper:", err);
+      console.error("❌ Error en búsqueda híbrida:", err);
       
-      let errorMessage = "Error al realizar la búsqueda. ";
-      
-      if (err.message.includes("401")) {
-        errorMessage += "API Key inválida o falta de créditos.";
-      } else if (err.message.includes("429")) {
-        errorMessage += "Límite de requests excedido.";
-      } else if (err.message.includes("Failed to fetch")) {
-        errorMessage += "Problema de conexión a internet.";
-      } else {
-        errorMessage += err.message;
-      }
-
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: `❌ ${errorMessage}` 
+              text: `❌ Error al procesar la búsqueda: ${err.message}` 
             };
             return { ...chat, messages: updated };
           }
           return chat;
         })
       );
+    } finally {
+      setIsTyping(false);
+      setIsScraping(false);
     }
   };
 
@@ -439,13 +605,13 @@ export default function Chat() {
           <div className="chat-input top-input">
             <input
               type="text"
-              placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
+              placeholder={isTyping || isScraping ? "Procesando búsqueda..." : "Escribe tu mensaje..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { 
                 if (e.key === "Enter") handleSend(); 
               }}
-              disabled={isTyping && !input}
+              disabled={(isTyping || isScraping) && !input}
             />
             <button 
               onClick={handleSend}
@@ -455,11 +621,11 @@ export default function Chat() {
             </button>
             <button
               onClick={handleSearch}
-              title="Buscar con Serper"
-              disabled={!input.trim() || isTyping}
+              title="Búsqueda avanzada con análisis"
+              disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
-              🔍
+              {isScraping ? "⏳" : "🔍"}
             </button>
           </div>
         )}
@@ -480,13 +646,13 @@ export default function Chat() {
           <div className="chat-input bottom-input">
             <input
               type="text"
-              placeholder={isTyping ? "El asistente está escribiendo..." : "Escribe tu mensaje..."}
+              placeholder={isTyping || isScraping ? "Procesando búsqueda..." : "Escribe tu mensaje..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { 
                 if (e.key === "Enter") handleSend(); 
               }}
-              disabled={isTyping && !input}
+              disabled={(isTyping || isScraping) && !input}
             />
             <button 
               onClick={handleSend}
@@ -496,11 +662,11 @@ export default function Chat() {
             </button>
             <button
               onClick={handleSearch}
-              title="Buscar con Serper"
-              disabled={!input.trim() || isTyping}
+              title="Búsqueda avanzada con análisis"
+              disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
-              🔍
+              {isScraping ? "⏳" : "🔍"}
             </button>
           </div>
         )}
