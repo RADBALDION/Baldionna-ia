@@ -17,7 +17,7 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
     messages: [
       {
         role: "system",
-        content: `Eres BALDIONNA-ai, un asistente conversacional útil.`,
+        content: `Eres BALDIONNA-ai, un asistente conversacional útil. desarrollado en colombia, en villavicencio meta, hecho por Eric Justin Baldion. eres capaz de comprender el dialecto latinoamericano como el argot y expresiones latinoamericanas mejor.`,
       },
       { role: "user", content: prompt },
     ],

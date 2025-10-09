@@ -86,7 +86,7 @@ export default function Chat() {
       id,
       name: "Nuevo chat",
       messages: [
-        { sender: "bot", text: "Hola, soy Baldionna-ai. ¿En qué te ayudo hoy?." }
+        { sender: "bot", text: "Hola, soy Baldionna-ai. ¿En qué te ayudo hoy?" }
       ]
     };
     const updatedChats = [newChat, ...chats];
