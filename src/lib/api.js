@@ -6,7 +6,7 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
   console.log("Usando ...");
 
   if (!API_KEY) {
-    throw new Error("⚠️ No se encontró la API key.");
+    throw new Error(" No se encontró la API key.");
   }
 
   const body = {
@@ -36,11 +36,11 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
       signal,
     });
 
-    console.log("🔧 Status OpenRouter:", resp.status);
+    console.log(" Status OpenRouter:", resp.status);
 
     if (!resp.ok) {
       const errorText = await resp.text();
-      console.error("❌ Error OpenRouter:", errorText);
+      console.error(" Error OpenRouter:", errorText);
       throw new Error(`Error ${resp.status}: ${errorText}`);
     }
 
@@ -71,13 +71,13 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
               onChunk(chunk);
             }
           } catch (e) {
-            console.warn("⚠️ Error parseando chunk:", e);
+            console.warn("Error parseando chunk:", e);
           }
         }
       }
     }
   } catch (error) {
-    console.error("🔧 Error en OpenRouter:", error);
+    console.error("Error en OpenRouter:", error);
     throw error;
   }
 }
