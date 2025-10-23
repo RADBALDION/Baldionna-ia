@@ -12,7 +12,7 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
   const body = {
     model: "deepseek/deepseek-chat", // Modelo específico 
     stream: true,
-    max_tokens: 4000,
+    max_tokens: 400000,
     temperature: 0.7,
     messages: [
       {
