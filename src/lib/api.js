@@ -3,7 +3,7 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
   const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || ""; // Usa la misma variable
 
-  console.log("🔧 Usando ...");
+  console.log("Usando ...");
 
   if (!API_KEY) {
     throw new Error("⚠️ No se encontró la API key.");
