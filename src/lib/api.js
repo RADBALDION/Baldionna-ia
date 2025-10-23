@@ -12,11 +12,12 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
   const body = {
     model: "deepseek/deepseek-chat", // Modelo específico 
     stream: true,
-    max_tokens: 80000,
-    temperature: 0.8,
-    top_p: 0.95,
-    presence_penalty: 0.2,
-    frequency_penalty: 0.1,
+    max_tokens: 100000, //
+    temperature: 0.9,  //mas creatividad y riqueza narrativa
+    top_p: 0.95,  //variedad sin perder coherencia
+    presence_penalty: 0.3,  //motiva explorar nuevos temas o escenas
+    frequency_penalty: 0.1, //evita repeticiones
+    repetition_penalty: 1.1,  //reduce redundancia
     messages: [
       {
         role: "system",
