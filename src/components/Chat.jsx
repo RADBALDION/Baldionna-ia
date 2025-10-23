@@ -430,7 +430,7 @@ export default function Chat() {
       );
 
       // Preparar el mensaje para DeepSeek
-      const deepSeekPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
+      const geminiPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
 
       // Limpiar el mensaje actual y preparar para streaming
       setChats((prevChats) =>
