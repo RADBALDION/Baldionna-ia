@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { askGeminiStream } from "../lib/api";
+import { askDeepSeekStream } from "../lib/api";
 import "./Chat.css";
 import { 
   Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
@@ -180,7 +180,7 @@ export default function Chat() {
     abortControllerRef.current = new AbortController();
 
     try {
-      await askGeminiStream(
+      await askDeepSeekStream(
         text,
         (chunk) => {
           setChats((prevChats) => {
@@ -430,7 +430,7 @@ export default function Chat() {
       );
 
       // Preparar el mensaje para DeepSeek
-      const geminiPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
+      const deepSeekPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
 
       // Limpiar el mensaje actual y preparar para streaming
       setChats((prevChats) =>
@@ -455,7 +455,7 @@ export default function Chat() {
       }
       abortControllerRef.current = new AbortController();
 
-      await askGeminiStream(
+      await askDeepSeekStream(
         deepSeekPrompt,
         (chunk) => {
           setChats((prevChats) => {
