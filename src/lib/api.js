@@ -1,23 +1,23 @@
-// Alternativa nueva key
-export async function askDeepSeekStream(prompt, onChunk, signal) {
+// === Alternativa nueva key: Gemini ===
+export async function askGeminiStream(prompt, onChunk, signal) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || ""; // Usa la misma variable
+  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ""; // nueva variable
 
-  console.log("Usando ...");
+  console.log("Usando modelo: Gemini 2.0 Flash Experimental...");
 
   if (!API_KEY) {
-    throw new Error(" No se encontró la API key.");
+    throw new Error("No se encontró la API key de Gemini (VITE_GEMINI_API_KEY).");
   }
 
   const body = {
-    model: "deepseek/deepseek-chat", // Modelo específico 
+    model: "google/gemini-2.0-flash-exp:free", // ← modelo actualizado
     stream: true,
-    max_tokens: 80000, //
-    temperature: 0.75,  //mas creatividad y riqueza narrativa
-    top_p: 0.9,  //variedad sin perder coherencia
-    presence_penalty: 0.3,  //motiva explorar nuevos temas o escenas
-    frequency_penalty: 0.25, //evita repeticiones
-    repetition_penalty: 1.1,  //reduce redundancia
+    max_tokens: 80000,
+    temperature: 0.75,
+    top_p: 0.9,
+    presence_penalty: 0.3,
+    frequency_penalty: 0.25,
+    repetition_penalty: 1.1,
     messages: [
       {
         role: "system",
@@ -36,16 +36,15 @@ Tu nombre proviene del proyecto BALDIONNA, una inteligencia artificial latinoame
 - Cuando termines una historia, usa una línea final clara, por ejemplo:
   “--- Fin del capítulo ---” o “--- Fin de la historia ---”.
 
- **Modo de respuesta:**
+**Modo de respuesta:**
 1. Analiza el contexto y el objetivo del usuario.
 2. Desarrolla la respuesta completa, pero no más allá de lo necesario.
 3. Cierra la idea con una conclusión o una nota final para indicar que has terminado.
 4. Si el usuario desea continuar, espera su siguiente instrucción.
 
- **Estilo de personalidad:**
+**Estilo de personalidad:**
 Eres cercana, expresiva y natural, pero también profesional y reflexiva.
-Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA latinoamericana con alma técnica y corazón humano.
-`,
+Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA latinoamericana con alma técnica y corazón humano.`,
       },
       { role: "user", content: prompt },
     ],
@@ -57,22 +56,22 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
       headers: {
         "Authorization": `Bearer ${API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": window.location.origin,
-        "X-Title": "BALDIONNA-ai",
+        "HTTP-Referer": window.location.origin, // opcional
+        "X-Title": "BALDIONNA-ai", // opcional
       },
       body: JSON.stringify(body),
       signal,
     });
 
-    console.log(" Status OpenRouter:", resp.status);
+    console.log("Status OpenRouter:", resp.status);
 
     if (!resp.ok) {
       const errorText = await resp.text();
-      console.error(" Error OpenRouter:", errorText);
+      console.error("Error OpenRouter:", errorText);
       throw new Error(`Error ${resp.status}: ${errorText}`);
     }
 
-    // ... el resto del código del stream igual ...
+    // === Procesamiento de stream ===
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
 
@@ -95,9 +94,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
           try {
             const parsed = JSON.parse(jsonData);
             const chunk = parsed.choices?.[0]?.delta?.content;
-            if (chunk) {
-              onChunk(chunk);
-            }
+            if (chunk) onChunk(chunk);
           } catch (e) {
             console.warn("Error parseando chunk:", e);
           }
