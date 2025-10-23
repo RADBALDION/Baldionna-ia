@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { askDeepSeekStream } from "../lib/api";
+import { askGeminiStream } from "../lib/api";
 import "./Chat.css";
 import { 
   Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
@@ -180,7 +180,7 @@ export default function Chat() {
     abortControllerRef.current = new AbortController();
 
     try {
-      await askDeepSeekStream(
+      await askGeminiStream(
         text,
         (chunk) => {
           setChats((prevChats) => {
@@ -455,7 +455,7 @@ export default function Chat() {
       }
       abortControllerRef.current = new AbortController();
 
-      await askDeepSeekStream(
+      await askGeminiStream(
         deepSeekPrompt,
         (chunk) => {
           setChats((prevChats) => {
