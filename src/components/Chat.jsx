@@ -23,6 +23,8 @@ export default function Chat() {
     inputPosition: "top",
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelsOpen, setModelsOpen] = useState(false);
+
 
   const listRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -579,14 +581,24 @@ export default function Chat() {
             ))}
           </div>
 
-          {/* Configuración */}
+                    {/* Configuración */}
           <div className="sidebar-footer">
             <button onClick={() => setSettingsOpen(true)}>
               <Settings size={18} /> Configuración
             </button>
           </div>
-        </div>
-      )}
+
+          {/* Modelos */}
+          <div className="sidebar-footer1">
+            <button onClick={() => setModelsOpen(true)}>
+              <Square size={17} /> Modelos
+            </button>
+          </div>
+        </div> 
+      )} 
+
+     
+      
 
       {/* Botón para abrir sidebar */}
       {!sidebarOpen && (
@@ -672,48 +684,79 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Modal configuración */}
-      {settingsOpen && (
-        <div className="settings-modal">
-          <div className="settings-content">
-            <h3>Configuración</h3>
+ {/* Modal de Configuración */}
+{settingsOpen && (
+  <div className="settings-modal">
+    <div className="settings-content">
+      <h3>Configuración</h3>
 
-            {/* Tema */}
-            <div className="settings-row">
-              <span>Tema</span>
-              <button
-                onClick={() =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    theme: prev.theme === "light" ? "dark" : "light",
-                  }))
-                }
-              >
-                {settings.theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-                {settings.theme === "light" ? "Modo oscuro" : "Modo claro"}
-              </button>
-            </div>
+      {/* Tema */}
+      <div className="settings-row">
+        <span>Tema</span>
+        <button
+          onClick={() =>
+            setSettings((prev) => ({
+              ...prev,
+              theme: prev.theme === "light" ? "dark" : "light",
+            }))
+          }
+        >
+          {settings.theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+          {settings.theme === "light" ? "Modo oscuro" : "Modo claro"}
+        </button>
+      </div>
 
-            {/* Posición barra */}
-            <div className="settings-row">
-              <span>Posición de barra de texto</span>
-              <select
-                value={settings.inputPosition}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, inputPosition: e.target.value }))
-                }
-              >
-                <option value="top">Arriba</option>
-                <option value="bottom">Abajo</option>
-              </select>
-            </div>
+      {/* Posición barra */}
+      <div className="settings-row">
+        <span>Posición de barra de texto</span>
+        <select
+          value={settings.inputPosition}
+          onChange={(e) =>
+            setSettings((prev) => ({ ...prev, inputPosition: e.target.value }))
+          }
+        >
+          <option value="top">Arriba</option>
+          <option value="bottom">Abajo</option>
+        </select>
+      </div>
 
-            <div className="settings-footer">
-              <button onClick={() => setSettingsOpen(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="settings-footer">
+        <button onClick={() => setSettingsOpen(false)}>Cerrar</button>
+      </div>
     </div>
-  );
+  </div>
+)}
+
+
+{/* Modal de Modelos */}
+{modelsOpen && (
+  <div className="settings-modal">
+    <div className="settings-content">
+      <h3>Modelos disponibles</h3>
+
+      <div className="model-slider">
+        {["Baldionna-ia A1", "Baldionna-ia A2", "B-IA"].map((model) => (
+          <div
+            key={model}
+            className={`model-option ${settings.model === model ? "active" : ""}`}
+            onClick={() => setSettings((prev) => ({ ...prev, model }))}
+          >
+            {model}
+          </div>
+        ))}
+      </div>
+
+      <p className="model-info">
+        Modelo actual: <strong>{settings.model}</strong>
+      </p>
+
+      <div className="settings-footer">
+        <button onClick={() => setModelsOpen(false)}>Cerrar</button>
+      </div>
+    </div>
+  </div>
+)}
+
+</div>
+);
 }

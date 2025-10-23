@@ -1,16 +1,16 @@
-// Alternativa OpenRouter con tu nueva key
+// Alternativa nueva key
 export async function askDeepSeekStream(prompt, onChunk, signal) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
   const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || ""; // Usa la misma variable
 
-  console.log("🔧 Usando OpenRouter con tu API key...");
+  console.log("🔧 Usando ...");
 
   if (!API_KEY) {
     throw new Error("⚠️ No se encontró la API key.");
   }
 
   const body = {
-    model: "deepseek/deepseek-chat", // Modelo específico en OpenRouter
+    model: "deepseek/deepseek-chat", // Modelo específico 
     stream: true,
     max_tokens: 4000,
     temperature: 0.7,
