@@ -340,7 +340,7 @@ export default function Chat() {
           q: query,
           gl: "es",
           hl: "es",
-          num: 8
+          num: 10 // Aumentamos a 10 resultados para más contexto
         })
       });
 
@@ -368,8 +368,8 @@ export default function Chat() {
       let scrapedContent = "";
       
       if (data.organic && data.organic.length > 0) {
-        // Tomar los 4 mejores resultados para scraping paralelo
-        const scrapingTargets = data.organic.slice(0, 4);
+        // Tomar los 6 mejores resultados para scraping paralelo (aumentado)
+        const scrapingTargets = data.organic.slice(0, 6);
         
         // SCRAPING PARALELO CON PROMISE.ALL
         console.log("🚀 Iniciando scraping paralelo para", scrapingTargets.length, "URLs");
@@ -399,31 +399,42 @@ export default function Chat() {
 
         console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
 
-        // Construir prompt para DeepSeek
-        scrapedContent = `Por favor, analiza y resume las siguientes noticias sobre "${query}":\n\n`;
-        
+        // Construir prompt MEJORADO para respuestas más extensas
+        scrapedContent = `Como analista senior especializado en investigación profunda, necesito que generes un reporte exhaustivo y detallado sobre "${query}". 
+
+INSTRUCCIONES ESPECÍFICAS:
+- Proporciona un análisis MINUCIOSO y COMPLETO
+- Extiéndete en cada sección con profundidad analítica
+- Incluye contexto histórico, impacto cultural, análisis prospectivo
+- Usa un formato markdown bien estructurado con encabezados
+- Mínimo 1500 palabras, idealmente 2000+ palabras
+- Sé exhaustivo en detalles y ejemplos concretos
+
+INFORMACIÓN RECOPILADA PARA ANALIZAR:
+
+`;
+
         successfulScrapes.forEach((item, index) => {
-          scrapedContent += `--- NOTICIA ${index + 1} ---\n`;
-          scrapedContent += `Título: ${item.title}\n`;
-          scrapedContent += `Resumen original: ${item.snippet}\n`;
-          scrapedContent += `Contenido completo: ${item.content.substring(0, 1500)}\n`;
-          scrapedContent += `Fuente: ${item.link}\n`;
-          if (item.date) scrapedContent += `Fecha: ${item.date}\n`;
-          scrapedContent += `\n`;
+          scrapedContent += `\n--- FUENTE ${index + 1} ---\n`;
+          scrapedContent += `TÍTULO: ${item.title}\n`;
+          scrapedContent += `RESUMEN ORIGINAL: ${item.snippet}\n`;
+          scrapedContent += `CONTENIDO COMPLETO: ${item.content.substring(0, 2000)}\n`;
+          scrapedContent += `FUENTE: ${item.link}\n`;
+          if (item.date) scrapedContent += `FECHA: ${item.date}\n`;
         });
 
-        // Agregar otros resultados como contexto
+        // Agregar otros resultados como contexto adicional
         if (data.organic.length > successfulScrapes.length) {
-          scrapedContent += `--- OTRAS FUENTES RELEVANTES ---\n`;
-          data.organic.slice(successfulScrapes.length, 8).forEach((result, index) => {
+          scrapedContent += `\n--- FUENTES ADICIONALES DE CONTEXTO ---\n`;
+          data.organic.slice(successfulScrapes.length, 10).forEach((result, index) => {
             scrapedContent += `${index + 1}. ${result.title}\n`;
-            scrapedContent += `Resumen: ${result.snippet}\n`;
-            scrapedContent += `Enlace: ${result.link}\n\n`;
+            scrapedContent += `   Resumen: ${result.snippet}\n`;
+            scrapedContent += `   Enlace: ${result.link}\n\n`;
           });
         }
 
         if (successfulScrapes.length === 0) {
-          scrapedContent = `No se pudo extraer contenido de las fuentes para "${query}". Se procederá con la búsqueda estándar.`;
+          scrapedContent = `No se pudo extraer contenido de las fuentes para "${query}". Se procederá con la búsqueda estándar.\n\n`;
           
           // Fallback a búsqueda normal
           setChats((prevChats) =>
@@ -441,11 +452,11 @@ export default function Chat() {
           );
           
           // Usar solo los snippets de Serper
-          scrapedContent = `Información sobre "${query}":\n\n`;
-          data.organic.slice(0, 6).forEach((result, index) => {
+          scrapedContent += `Información recopilada sobre "${query}":\n\n`;
+          data.organic.slice(0, 8).forEach((result, index) => {
             scrapedContent += `${index + 1}. ${result.title}\n`;
-            scrapedContent += `Resumen: ${result.snippet}\n`;
-            scrapedContent += `Fuente: ${result.link}\n\n`;
+            scrapedContent += `   Resumen: ${result.snippet}\n`;
+            scrapedContent += `   Fuente: ${result.link}\n\n`;
           });
         }
 
@@ -461,7 +472,7 @@ export default function Chat() {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "🧠 Procesando y organizando la información..." 
+              text: "🧠 Procesando y organizando la información de manera exhaustiva..." 
             };
             return { ...chat, messages: updated };
           }
@@ -469,8 +480,42 @@ export default function Chat() {
         })
       );
 
-      // Preparar el mensaje para DeepSeek
-      const deepSeekPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
+      // PROMPT MEJORADO para respuestas extensas
+      const deepSeekPrompt = `Eres un analista senior de investigación con expertise en múltiples disciplinas. Tu tarea es crear un reporte exhaustivo, detallado y profundamente analítico basado en la siguiente información.
+
+REQUISITOS DE LA RESPUESTA:
+1. EXTENSIVO - Mínimo 1500 palabras, idealmente 2000+
+2. ESTRUCTURADO - Usa markdown con encabezados jerárquicos (#, ##, ###)
+3. PROFUNDO - Incluye análisis histórico, contexto cultural, impacto social, proyecciones futuras
+4. DETALLADO - Proporciona ejemplos específicos, datos concretos, citas relevantes
+5. COMPLETO - Cubre todos los aspectos importantes del tema
+
+ESTRUCTURA SUGERIDA:
+# Título Principal Atractivo
+
+## Resumen Ejecutivo
+[Resumen comprehensivo de los hallazgos más importantes]
+
+## Contexto Histórico y Antecedentes
+[Análisis profundo del desarrollo histórico del tema]
+
+## Análisis de la Situación Actual
+[Examen minucioso del estado actual con datos específicos]
+
+## Impacto Cultural y Social
+[Análisis del efecto en la sociedad, tendencias, movimientos]
+
+## Perspectivas de Futuro y Tendencias Emergentes
+[Proyecciones, oportunidades, desafíos futuros]
+
+## Conclusiones y Recomendaciones
+[Reflexiones finales y posibles cursos de acción]
+
+INFORMACIÓN A ANALIZAR:
+
+${scrapedContent}
+
+IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que esperaría un experto en la materia. No te limites por la longitud - entre más detallado y analítico, mejor.`;
 
       // Limpiar el mensaje actual y preparar para streaming
       setChats((prevChats) =>
@@ -514,7 +559,8 @@ export default function Chat() {
             return newChats;
           });
         },
-        abortControllerRef.current.signal
+        abortControllerRef.current.signal,
+        { maxTokens: 4000 } // Aumentar tokens máximos para respuestas más largas
       );
 
       console.log("✅ Búsqueda híbrida completada");
@@ -670,7 +716,7 @@ export default function Chat() {
             </button>
             <button
               onClick={handleSearch}
-              title="Búsqueda avanzada con análisis"
+              title="Búsqueda avanzada con análisis exhaustivo"
               disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
@@ -711,7 +757,7 @@ export default function Chat() {
             </button>
             <button
               onClick={handleSearch}
-              title="Búsqueda avanzada con análisis"
+              title="Búsqueda avanzada con análisis exhaustivo"
               disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
