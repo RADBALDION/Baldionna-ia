@@ -219,7 +219,7 @@ export default function Chat() {
           });
         },
         abortControllerRef.current.signal,
-        { maxTokens: 4000 }
+        { maxTokens: 80000 }
       );
     } catch (err) {
       console.error("Error askDeepSeekStream:", err);
