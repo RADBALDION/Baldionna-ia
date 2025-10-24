@@ -223,7 +223,7 @@ export default function Chat() {
     try {
       console.log("🔍 Scraping con Jina AI:", url);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+      const timeout = setTimeout(() => controller.abort(), 20000); // 20 segundos timeout
 
       const response = await fetch(`https://r.jina.ai/${url}`, {
         headers: {
