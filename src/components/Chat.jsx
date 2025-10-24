@@ -131,6 +131,25 @@ export default function Chat() {
     return html;
   };
 
+  // Función para estimar tokens (aproximación)
+  const estimateTokens = (text) => {
+    return Math.ceil(text.length / 4);
+  };
+
+  // Función para limitar contenido por tokens
+  const limitContentByTokens = (content, maxTokens = 6000) => {
+    const estimatedTokens = estimateTokens(content);
+    if (estimatedTokens <= maxTokens) {
+      return content;
+    }
+    
+    const ratio = maxTokens / estimatedTokens;
+    const maxLength = Math.floor(content.length * ratio);
+    console.log(`📏 Limitando contenido: ${estimatedTokens} → ${maxTokens} tokens`);
+    
+    return content.substring(0, maxLength) + "... [contenido recortado por límite]";
+  };
+
   // Enviar mensaje o detener
   const handleSend = async () => {
     if (isTyping) {
@@ -200,7 +219,7 @@ export default function Chat() {
           });
         },
         abortControllerRef.current.signal,
-         { maxTokens: 80000 } // Asegurarnos de que este parámetro se pasa correctamente
+        { maxTokens: 4000 }
       );
     } catch (err) {
       console.error("Error askDeepSeekStream:", err);
@@ -224,7 +243,7 @@ export default function Chat() {
     try {
       console.log("🔍 Scraping con Jina AI:", url);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000); // 20 segundos timeout
+      const timeout = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch(`https://r.jina.ai/${url}`, {
         headers: {
@@ -240,7 +259,7 @@ export default function Chat() {
         const content = await response.text();
         return content
           .replace(/\s+/g, ' ')
-          .substring(0, 4000)
+          .substring(0, 3000)
           .trim();
       }
       return null;
@@ -255,7 +274,7 @@ export default function Chat() {
     try {
       console.log("🔍 Scraping con CORS proxy:", url);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000); // 20 segundos timeout
+      const timeout = setTimeout(() => controller.abort(), 15000);
 
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
       
@@ -277,7 +296,7 @@ export default function Chat() {
         
         return content
           .replace(/\s+/g, ' ')
-          .substring(0, 3000)
+          .substring(0, 2000)
           .trim();
       }
       return null;
@@ -290,6 +309,12 @@ export default function Chat() {
   // SCRAPING PARALELO MEJORADO CON TIMEOUT
   const scrapeUrl = async (url) => {
     try {
+      // Skipear URLs problemáticas
+      if (url.includes('youtube.com') || url.includes('instagram.com') || url.includes('tiktok.com')) {
+        console.log("⏭️ Saltando URL de video/red social:", url);
+        return null;
+      }
+
       // Intentar primero con Jina AI
       let content = await scrapeWithJinaAI(url);
       
@@ -305,12 +330,12 @@ export default function Chat() {
     }
   };
 
-  // BUSQUEDA HÍBRIDA MEJORADA - SIN DELAY, CON SCRAPING PARALELO
+  // BUSQUEDA HÍBRIDA MEJORADA - CON CONTROL DE TOKENS Y EVITAR REPETICIONES
   const handleSearch = async () => {
     if (!input.trim() || !activeChat) return;
 
     const query = input.trim();
-    console.log("🔍 Iniciando búsqueda híbrida:", query);
+    console.log("🔍 Iniciando búsqueda híbrida con control de tokens:", query);
 
     // Agrega mensajes al chat
     const userMessage = { sender: "user", text: query };
@@ -341,7 +366,7 @@ export default function Chat() {
           q: query,
           gl: "es",
           hl: "es",
-          num: 10 // Aumentamos a 10 resultados para más contexto
+          num: 6
         })
       });
 
@@ -350,15 +375,15 @@ export default function Chat() {
       const data = await response.json();
       console.log("📦 Datos recibidos de Serper:", data);
 
-      // FASE 2: Scraping paralelo inmediato
-      console.log("🌐 Fase 2: Realizando scraping paralelo...");
+      // FASE 2: Scraping paralelo controlado
+      console.log("🌐 Fase 2: Realizando scraping paralelo controlado...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "📖 Extrayendo contenido completo de las fuentes en paralelo..." 
+              text: "📖 Extrayendo contenido completo de las fuentes..." 
             };
             return { ...chat, messages: updated };
           }
@@ -369,111 +394,85 @@ export default function Chat() {
       let scrapedContent = "";
       
       if (data.organic && data.organic.length > 0) {
-        // Tomar los 6 mejores resultados para scraping paralelo (aumentado)
-        const scrapingTargets = data.organic.slice(0, 6);
-        
-        // SCRAPING PARALELO CON PROMISE.ALL
-        console.log("🚀 Iniciando scraping paralelo para", scrapingTargets.length, "URLs");
-        
-        const scrapingPromises = scrapingTargets.map(async (result) => {
-          try {
-            const content = await scrapeUrl(result.link);
-            if (content && content.length > 200) {
-              return {
-                title: result.title,
-                snippet: result.snippet,
-                content: content,
-                link: result.link,
-                date: result.date
-              };
-            }
-            return null;
-          } catch (error) {
-            console.error(`Error scraping ${result.link}:`, error);
-            return null;
-          }
-        });
+        // Filtrar y tomar solo 3 resultados para scraping
+        const scrapingTargets = data.organic
+          .filter(result => 
+            !result.link.includes('youtube.com') && 
+            !result.link.includes('instagram.com') &&
+            !result.link.includes('tiktok.com')
+          )
+          .slice(0, 3);
 
-        // Esperar todos los scrapings en paralelo
-        const scrapingResults = await Promise.all(scrapingPromises);
-        const successfulScrapes = scrapingResults.filter(item => item !== null);
+        console.log("🚀 URLs válidas para scraping:", scrapingTargets.length);
 
-        console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
+        let successfulScrapes = [];
 
-        // Construir prompt MEJORADO para respuestas más extensas
-        scrapedContent = `Como analista senior especializado en investigación profunda, necesito que generes un reporte exhaustivo y detallado sobre "${query}". 
-
-INSTRUCCIONES ESPECÍFICAS:
-- Proporciona un análisis MINUCIOSO y COMPLETO
-- Extiéndete en cada sección con profundidad analítica
-- Incluye contexto histórico, impacto cultural, análisis prospectivo
-- Usa un formato markdown bien estructurado con encabezados
-- Mínimo 1500 palabras, idealmente 2000+ palabras
-- Sé exhaustivo en detalles y ejemplos concretos
-
-INFORMACIÓN RECOPILADA PARA ANALIZAR:
-
-`;
-
-        successfulScrapes.forEach((item, index) => {
-          scrapedContent += `\n--- FUENTE ${index + 1} ---\n`;
-          scrapedContent += `TÍTULO: ${item.title}\n`;
-          scrapedContent += `RESUMEN ORIGINAL: ${item.snippet}\n`;
-          scrapedContent += `CONTENIDO COMPLETO: ${item.content.substring(0, 2000)}\n`;
-          scrapedContent += `FUENTE: ${item.link}\n`;
-          if (item.date) scrapedContent += `FECHA: ${item.date}\n`;
-        });
-
-        // Agregar otros resultados como contexto adicional
-        if (data.organic.length > successfulScrapes.length) {
-          scrapedContent += `\n--- FUENTES ADICIONALES DE CONTEXTO ---\n`;
-          data.organic.slice(successfulScrapes.length, 10).forEach((result, index) => {
-            scrapedContent += `${index + 1}. ${result.title}\n`;
-            scrapedContent += `   Resumen: ${result.snippet}\n`;
-            scrapedContent += `   Enlace: ${result.link}\n\n`;
-          });
-        }
-
-        if (successfulScrapes.length === 0) {
-          scrapedContent = `No se pudo extraer contenido de las fuentes para "${query}". Se procederá con la búsqueda estándar.\n\n`;
-          
-          // Fallback a búsqueda normal
-          setChats((prevChats) =>
-            prevChats.map((chat) => {
-              if (chat.id === activeChat) {
-                const updated = [...chat.messages];
-                updated[botIndex] = { 
-                  sender: "bot", 
-                  text: "🔍 Continuando con búsqueda estándar..." 
+        if (scrapingTargets.length > 0) {
+          // SCRAPING PARALELO CONTROLADO
+          const scrapingPromises = scrapingTargets.map(async (result) => {
+            try {
+              const content = await scrapeUrl(result.link);
+              if (content && content.length > 200) {
+                return {
+                  title: result.title,
+                  snippet: result.snippet,
+                  content: content,
+                  link: result.link,
+                  date: result.date
                 };
-                return { ...chat, messages: updated };
               }
-              return chat;
-            })
-          );
-          
-          // Usar solo los snippets de Serper
-          scrapedContent += `Información recopilada sobre "${query}":\n\n`;
-          data.organic.slice(0, 8).forEach((result, index) => {
-            scrapedContent += `${index + 1}. ${result.title}\n`;
-            scrapedContent += `   Resumen: ${result.snippet}\n`;
-            scrapedContent += `   Fuente: ${result.link}\n\n`;
+              return null;
+            } catch (error) {
+              console.error(`Error scraping ${result.link}:`, error);
+              return null;
+            }
+          });
+
+          const scrapingResults = await Promise.allSettled(scrapingPromises);
+          successfulScrapes = scrapingResults
+            .filter(result => result.status === 'fulfilled' && result.value !== null)
+            .map(result => result.value);
+
+          console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
+        }
+
+        // CONSTRUIR CONTENIDO CONTROLADO
+        let rawContent = `INFORME SOBRE: "${query}"\n\nFUENTES PRINCIPALES:\n`;
+
+        if (successfulScrapes.length > 0) {
+          successfulScrapes.forEach((item, index) => {
+            rawContent += `\n--- FUENTE ${index + 1} ---\n`;
+            rawContent += `TÍTULO: ${item.title}\n`;
+            rawContent += `RESUMEN: ${item.snippet}\n`;
+            rawContent += `CONTENIDO: ${item.content.substring(0, 1000)}\n`;
+            rawContent += `FUENTE: ${item.link}\n`;
           });
         }
+
+        // AGREGAR CONTEXTO ADICIONAL LIMITADO
+        rawContent += `\n--- CONTEXTO ADICIONAL ---\n`;
+        data.organic.slice(0, 4).forEach((result, index) => {
+          rawContent += `${index + 1}. ${result.title}\n`;
+          rawContent += `   RESUMEN: ${result.snippet}\n`;
+          rawContent += `   URL: ${result.link}\n\n`;
+        });
+
+        // APLICAR LÍMITE DE TOKENS AL CONTENIDO COMPLETO
+        scrapedContent = limitContentByTokens(rawContent, 4000);
 
       } else {
-        scrapedContent = `No se encontraron resultados específicos para "${query}". Por favor, intenta con una búsqueda más concreta.`;
+        scrapedContent = `No se encontraron resultados específicos para "${query}".`;
       }
 
-      // FASE 3: Procesar con DeepSeek
-      console.log("🤖 Fase 3: Procesando con DeepSeek...");
+      // FASE 3: Procesar con DeepSeek con límites claros y prevención de repeticiones
+      console.log("🤖 Fase 3: Procesando con DeepSeek (con límites y anti-repetición)...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "🧠 Procesando y organizando la información de manera exhaustiva..." 
+              text: "🧠 Procesando información de manera óptima..." 
             };
             return { ...chat, messages: updated };
           }
@@ -481,44 +480,52 @@ INFORMACIÓN RECOPILADA PARA ANALIZAR:
         })
       );
 
-      // PROMPT MEJORADO para respuestas extensas
-      const deepSeekPrompt = `Eres un analista senior de investigación con expertise en múltiples disciplinas. Tu tarea es crear un reporte exhaustivo, detallado y profundamente analítico basado en la siguiente información.
+      // PROMPT MEJORADO CON LÍMITES EXPLÍCITOS Y PREVENCIÓN DE REPETICIONES
+      const deepSeekPrompt = `Eres un analista experto. Genera un informe bien estructurado pero CONCISO.
 
-REQUISITOS DE LA RESPUESTA:
-1. EXTENSIVO - Mínimo 1500 palabras, idealmente 2000+
-2. ESTRUCTURADO - Usa markdown con encabezados jerárquicos (#, ##, ###)
-3. PROFUNDO - Incluye análisis histórico, contexto cultural, impacto social, proyecciones futuras
-4. DETALLADO - Proporciona ejemplos específicos, datos concretos, citas relevantes
-5. COMPLETO - Cubre todos los aspectos importantes del tema
+TEMA: "${query}"
 
-ESTRUCTURA SUGERIDA:
-# Título Principal Atractivo
-
-## Resumen Ejecutivo
-[Resumen comprehensivo de los hallazgos más importantes]
-
-## Contexto Histórico y Antecedentes
-[Análisis profundo del desarrollo histórico del tema]
-
-## Análisis de la Situación Actual
-[Examen minucioso del estado actual con datos específicos]
-
-## Impacto Cultural y Social
-[Análisis del efecto en la sociedad, tendencias, movimientos]
-
-## Perspectivas de Futuro y Tendencias Emergentes
-[Proyecciones, oportunidades, desafíos futuros]
-
-## Conclusiones y Recomendaciones
-[Reflexiones finales y posibles cursos de acción]
-
-INFORMACIÓN A ANALIZAR:
-
+INFORMACIÓN RECOPILADA:
 ${scrapedContent}
 
-IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que esperaría un experto en la materia. No te limites por la longitud - entre más detallado y analítico, mejor.`;
+INSTRUCCIONES CRÍTICAS:
+- LÍMITE: MÁXIMO 800 palabras (aproximadamente 1000 tokens)
+- ESTRUCTURA: Usa markdown claro con encabezados
+- CONTENIDO: Enfócate en lo más relevante
+- EVITA: 
+  * Repeticiones de palabras o frases
+  * Listas interminables de adjetivos
+  * Contenido redundante
+  * Párrafos excesivamente largos
+  * Divagaciones sin sentido
+- FORMATO: Párrafos coherentes y bien estructurados
+- CALIDAD: Información verificable y específica
 
-      // Limpiar el mensaje actual y preparar para streaming
+ESTRUCTURA SUGERIDA (breve y concisa):
+# Análisis: [Tema]
+
+## Resumen Ejecutivo
+[2-3 párrafos máximo con información clave]
+
+## Contexto y Antecedentes  
+[2 párrafos con información histórica relevante]
+
+## Análisis Principal
+[3-4 párrafos con los puntos más importantes]
+
+## Impacto y Consecuencias
+[2 párrafos sobre efectos y repercusiones]
+
+## Perspectivas Futuras
+[1-2 párrafos con proyecciones]
+
+IMPORTANTE: 
+- Si excedes el límite de tokens, la respuesta se cortará
+- Evita listas interminables de adjetivos sin sentido
+- Mantén la coherencia y evita divagaciones
+- Usa lenguaje claro y directo`;
+
+      // Limpiar el mensaje actual
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
@@ -533,13 +540,18 @@ IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que espe
         })
       );
 
-      // Usar DeepSeek para procesar y mostrar el resultado
+      // Usar DeepSeek con parámetros optimizados
       setIsTyping(true);
 
       if (abortControllerRef.current) {
         try { abortControllerRef.current.abort(); } catch (e) {}
       }
       abortControllerRef.current = new AbortController();
+
+      // Variables para control de repetición
+      let lastChunk = "";
+      let repetitionCount = 0;
+      const maxRepetition = 3;
 
       await askDeepSeekStream(
         deepSeekPrompt,
@@ -548,9 +560,32 @@ IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que espe
             const newChats = prevChats.map((chat) => {
               if (chat.id === activeChat) {
                 const updated = [...chat.messages];
+                const currentText = updated[botIndex]?.text || "";
+                
+                // Verificar repeticiones
+                if (chunk === lastChunk) {
+                  repetitionCount++;
+                  if (repetitionCount >= maxRepetition) {
+                    console.log("🛑 Detectada repetición excesiva, deteniendo...");
+                    if (abortControllerRef.current) {
+                      abortControllerRef.current.abort();
+                    }
+                    return chat;
+                  }
+                } else {
+                  repetitionCount = 0;
+                  lastChunk = chunk;
+                }
+
+                // Verificar longitud aproximada para prevenir desbordamiento
+                if (estimateTokens(currentText + chunk) > 1500) {
+                  console.log("⚠️ Alcanzando límite de tokens, cortando respuesta...");
+                  return chat;
+                }
+                
                 updated[botIndex] = {
                   sender: "bot",
-                  text: (updated[botIndex]?.text || "") + chunk
+                  text: currentText + chunk
                 };
                 return { ...chat, messages: updated };
               }
@@ -561,21 +596,30 @@ IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que espe
           });
         },
         abortControllerRef.current.signal,
-        { maxTokens: 4000 } // Aumentar tokens máximos para respuestas más largas
+        { 
+          max_tokens: 1200,
+          temperature: 0.7,
+          stop: ["\n\n\n", "---", "***"] // Paradas adicionales para evitar repeticiones
+        }
       );
 
-      console.log("✅ Búsqueda híbrida completada");
+      console.log("✅ Búsqueda completada con control de tokens y repeticiones");
 
     } catch (err) {
-      console.error("❌ Error en búsqueda híbrida:", err);
+      console.error("❌ Error en búsqueda:", err);
       
+      // Si el error es por límite de tokens, mostrar mensaje específico
+      const errorMessage = err.message.includes('token') || err.message.includes('length') 
+        ? "❌ La respuesta excedió el límite de longitud. Intenta con una búsqueda más específica."
+        : `❌ Error: ${err.message}`;
+
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: `❌ Error al procesar la búsqueda: ${err.message}` 
+              text: errorMessage
             };
             return { ...chat, messages: updated };
           }
@@ -717,7 +761,7 @@ IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que espe
             </button>
             <button
               onClick={handleSearch}
-              title="Búsqueda avanzada con análisis exhaustivo"
+              title="Búsqueda avanzada con análisis optimizado"
               disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
@@ -758,7 +802,7 @@ IMPORTANTE: Sé exhaustivo, minucioso y proporciona el nivel de detalle que espe
             </button>
             <button
               onClick={handleSearch}
-              title="Búsqueda avanzada con análisis exhaustivo"
+              title="Búsqueda avanzada con análisis optimizado"
               disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
