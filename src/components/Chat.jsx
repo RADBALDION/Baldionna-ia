@@ -131,25 +131,6 @@ export default function Chat() {
     return html;
   };
 
-  // Función para estimar tokens (aproximación)
-  const estimateTokens = (text) => {
-    return Math.ceil(text.length / 4);
-  };
-
-  // Función para limitar contenido por tokens
-  const limitContentByTokens = (content, maxTokens = 6000) => {
-    const estimatedTokens = estimateTokens(content);
-    if (estimatedTokens <= maxTokens) {
-      return content;
-    }
-    
-    const ratio = maxTokens / estimatedTokens;
-    const maxLength = Math.floor(content.length * ratio);
-    console.log(`📏 Limitando contenido: ${estimatedTokens} → ${maxTokens} tokens`);
-    
-    return content.substring(0, maxLength) + "... [contenido recortado por límite]";
-  };
-
   // Enviar mensaje o detener
   const handleSend = async () => {
     if (isTyping) {
@@ -218,8 +199,7 @@ export default function Chat() {
             return newChats;
           });
         },
-        abortControllerRef.current.signal,
-        { maxTokens: 80000 }
+        abortControllerRef.current.signal
       );
     } catch (err) {
       console.error("Error askDeepSeekStream:", err);
@@ -243,7 +223,7 @@ export default function Chat() {
     try {
       console.log("🔍 Scraping con Jina AI:", url);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
 
       const response = await fetch(`https://r.jina.ai/${url}`, {
         headers: {
@@ -259,7 +239,7 @@ export default function Chat() {
         const content = await response.text();
         return content
           .replace(/\s+/g, ' ')
-          .substring(0, 3000)
+          .substring(0, 4000)
           .trim();
       }
       return null;
@@ -274,7 +254,7 @@ export default function Chat() {
     try {
       console.log("🔍 Scraping con CORS proxy:", url);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
 
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
       
@@ -296,7 +276,7 @@ export default function Chat() {
         
         return content
           .replace(/\s+/g, ' ')
-          .substring(0, 2000)
+          .substring(0, 3000)
           .trim();
       }
       return null;
@@ -309,12 +289,6 @@ export default function Chat() {
   // SCRAPING PARALELO MEJORADO CON TIMEOUT
   const scrapeUrl = async (url) => {
     try {
-      // Skipear URLs problemáticas
-      if (url.includes('youtube.com') || url.includes('instagram.com') || url.includes('tiktok.com')) {
-        console.log("⏭️ Saltando URL de video/red social:", url);
-        return null;
-      }
-
       // Intentar primero con Jina AI
       let content = await scrapeWithJinaAI(url);
       
@@ -330,12 +304,12 @@ export default function Chat() {
     }
   };
 
-  // BUSQUEDA HÍBRIDA MEJORADA - CON CONTROL DE TOKENS Y EVITAR REPETICIONES
+  // BUSQUEDA HÍBRIDA MEJORADA - SIN DELAY, CON SCRAPING PARALELO
   const handleSearch = async () => {
     if (!input.trim() || !activeChat) return;
 
     const query = input.trim();
-    console.log("🔍 Iniciando búsqueda híbrida con control de tokens:", query);
+    console.log("🔍 Iniciando búsqueda híbrida:", query);
 
     // Agrega mensajes al chat
     const userMessage = { sender: "user", text: query };
@@ -366,7 +340,7 @@ export default function Chat() {
           q: query,
           gl: "es",
           hl: "es",
-          num: 6
+          num: 8
         })
       });
 
@@ -375,15 +349,15 @@ export default function Chat() {
       const data = await response.json();
       console.log("📦 Datos recibidos de Serper:", data);
 
-      // FASE 2: Scraping paralelo controlado
-      console.log("🌐 Fase 2: Realizando scraping paralelo controlado...");
+      // FASE 2: Scraping paralelo inmediato
+      console.log("🌐 Fase 2: Realizando scraping paralelo...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "📖 Extrayendo contenido completo de las fuentes..." 
+              text: "📖 Extrayendo contenido completo de las fuentes en paralelo..." 
             };
             return { ...chat, messages: updated };
           }
@@ -394,85 +368,100 @@ export default function Chat() {
       let scrapedContent = "";
       
       if (data.organic && data.organic.length > 0) {
-        // Filtrar y tomar solo 3 resultados para scraping
-        const scrapingTargets = data.organic
-          .filter(result => 
-            !result.link.includes('youtube.com') && 
-            !result.link.includes('instagram.com') &&
-            !result.link.includes('tiktok.com')
-          )
-          .slice(0, 3);
-
-        console.log("🚀 URLs válidas para scraping:", scrapingTargets.length);
-
-        let successfulScrapes = [];
-
-        if (scrapingTargets.length > 0) {
-          // SCRAPING PARALELO CONTROLADO
-          const scrapingPromises = scrapingTargets.map(async (result) => {
-            try {
-              const content = await scrapeUrl(result.link);
-              if (content && content.length > 200) {
-                return {
-                  title: result.title,
-                  snippet: result.snippet,
-                  content: content,
-                  link: result.link,
-                  date: result.date
-                };
-              }
-              return null;
-            } catch (error) {
-              console.error(`Error scraping ${result.link}:`, error);
-              return null;
+        // Tomar los 4 mejores resultados para scraping paralelo
+        const scrapingTargets = data.organic.slice(0, 4);
+        
+        // SCRAPING PARALELO CON PROMISE.ALL
+        console.log("🚀 Iniciando scraping paralelo para", scrapingTargets.length, "URLs");
+        
+        const scrapingPromises = scrapingTargets.map(async (result) => {
+          try {
+            const content = await scrapeUrl(result.link);
+            if (content && content.length > 200) {
+              return {
+                title: result.title,
+                snippet: result.snippet,
+                content: content,
+                link: result.link,
+                date: result.date
+              };
             }
-          });
-
-          const scrapingResults = await Promise.allSettled(scrapingPromises);
-          successfulScrapes = scrapingResults
-            .filter(result => result.status === 'fulfilled' && result.value !== null)
-            .map(result => result.value);
-
-          console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
-        }
-
-        // CONSTRUIR CONTENIDO CONTROLADO
-        let rawContent = `INFORME SOBRE: "${query}"\n\nFUENTES PRINCIPALES:\n`;
-
-        if (successfulScrapes.length > 0) {
-          successfulScrapes.forEach((item, index) => {
-            rawContent += `\n--- FUENTE ${index + 1} ---\n`;
-            rawContent += `TÍTULO: ${item.title}\n`;
-            rawContent += `RESUMEN: ${item.snippet}\n`;
-            rawContent += `CONTENIDO: ${item.content.substring(0, 1000)}\n`;
-            rawContent += `FUENTE: ${item.link}\n`;
-          });
-        }
-
-        // AGREGAR CONTEXTO ADICIONAL LIMITADO
-        rawContent += `\n--- CONTEXTO ADICIONAL ---\n`;
-        data.organic.slice(0, 4).forEach((result, index) => {
-          rawContent += `${index + 1}. ${result.title}\n`;
-          rawContent += `   RESUMEN: ${result.snippet}\n`;
-          rawContent += `   URL: ${result.link}\n\n`;
+            return null;
+          } catch (error) {
+            console.error(`Error scraping ${result.link}:`, error);
+            return null;
+          }
         });
 
-        // APLICAR LÍMITE DE TOKENS AL CONTENIDO COMPLETO
-        scrapedContent = limitContentByTokens(rawContent, 4000);
+        // Esperar todos los scrapings en paralelo
+        const scrapingResults = await Promise.all(scrapingPromises);
+        const successfulScrapes = scrapingResults.filter(item => item !== null);
+
+        console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
+
+        // Construir prompt para DeepSeek
+        scrapedContent = `Por favor, analiza y resume las siguientes noticias sobre "${query}":\n\n`;
+        
+        successfulScrapes.forEach((item, index) => {
+          scrapedContent += `--- NOTICIA ${index + 1} ---\n`;
+          scrapedContent += `Título: ${item.title}\n`;
+          scrapedContent += `Resumen original: ${item.snippet}\n`;
+          scrapedContent += `Contenido completo: ${item.content.substring(0, 1500)}\n`;
+          scrapedContent += `Fuente: ${item.link}\n`;
+          if (item.date) scrapedContent += `Fecha: ${item.date}\n`;
+          scrapedContent += `\n`;
+        });
+
+        // Agregar otros resultados como contexto
+        if (data.organic.length > successfulScrapes.length) {
+          scrapedContent += `--- OTRAS FUENTES RELEVANTES ---\n`;
+          data.organic.slice(successfulScrapes.length, 8).forEach((result, index) => {
+            scrapedContent += `${index + 1}. ${result.title}\n`;
+            scrapedContent += `Resumen: ${result.snippet}\n`;
+            scrapedContent += `Enlace: ${result.link}\n\n`;
+          });
+        }
+
+        if (successfulScrapes.length === 0) {
+          scrapedContent = `No se pudo extraer contenido de las fuentes para "${query}". Se procederá con la búsqueda estándar.`;
+          
+          // Fallback a búsqueda normal
+          setChats((prevChats) =>
+            prevChats.map((chat) => {
+              if (chat.id === activeChat) {
+                const updated = [...chat.messages];
+                updated[botIndex] = { 
+                  sender: "bot", 
+                  text: "🔍 Continuando con búsqueda estándar..." 
+                };
+                return { ...chat, messages: updated };
+              }
+              return chat;
+            })
+          );
+          
+          // Usar solo los snippets de Serper
+          scrapedContent = `Información sobre "${query}":\n\n`;
+          data.organic.slice(0, 6).forEach((result, index) => {
+            scrapedContent += `${index + 1}. ${result.title}\n`;
+            scrapedContent += `Resumen: ${result.snippet}\n`;
+            scrapedContent += `Fuente: ${result.link}\n\n`;
+          });
+        }
 
       } else {
-        scrapedContent = `No se encontraron resultados específicos para "${query}".`;
+        scrapedContent = `No se encontraron resultados específicos para "${query}". Por favor, intenta con una búsqueda más concreta.`;
       }
 
-      // FASE 3: Procesar con DeepSeek con límites claros y prevención de repeticiones
-      console.log("🤖 Fase 3: Procesando con DeepSeek (con límites y anti-repetición)...");
+      // FASE 3: Procesar con DeepSeek
+      console.log("🤖 Fase 3: Procesando con DeepSeek...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "🧠 Procesando información de manera óptima..." 
+              text: "🧠 Procesando y organizando la información..." 
             };
             return { ...chat, messages: updated };
           }
@@ -480,52 +469,10 @@ export default function Chat() {
         })
       );
 
-      // PROMPT MEJORADO CON LÍMITES EXPLÍCITOS Y PREVENCIÓN DE REPETICIONES
-      const deepSeekPrompt = `Eres un analista experto. Genera un informe bien estructurado pero CONCISO.
+      // Preparar el mensaje para DeepSeek
+      const deepSeekPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
 
-TEMA: "${query}"
-
-INFORMACIÓN RECOPILADA:
-${scrapedContent}
-
-INSTRUCCIONES CRÍTICAS:
-- LÍMITE: MÁXIMO 800 palabras (aproximadamente 1000 tokens)
-- ESTRUCTURA: Usa markdown claro con encabezados
-- CONTENIDO: Enfócate en lo más relevante
-- EVITA: 
-  * Repeticiones de palabras o frases
-  * Listas interminables de adjetivos
-  * Contenido redundante
-  * Párrafos excesivamente largos
-  * Divagaciones sin sentido
-- FORMATO: Párrafos coherentes y bien estructurados
-- CALIDAD: Información verificable y específica
-
-ESTRUCTURA SUGERIDA (breve y concisa):
-# Análisis: [Tema]
-
-## Resumen Ejecutivo
-[2-3 párrafos máximo con información clave]
-
-## Contexto y Antecedentes  
-[2 párrafos con información histórica relevante]
-
-## Análisis Principal
-[3-4 párrafos con los puntos más importantes]
-
-## Impacto y Consecuencias
-[2 párrafos sobre efectos y repercusiones]
-
-## Perspectivas Futuras
-[1-2 párrafos con proyecciones]
-
-IMPORTANTE: 
-- Si excedes el límite de tokens, la respuesta se cortará
-- Evita listas interminables de adjetivos sin sentido
-- Mantén la coherencia y evita divagaciones
-- Usa lenguaje claro y directo`;
-
-      // Limpiar el mensaje actual
+      // Limpiar el mensaje actual y preparar para streaming
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
@@ -540,7 +487,7 @@ IMPORTANTE:
         })
       );
 
-      // Usar DeepSeek con parámetros optimizados
+      // Usar DeepSeek para procesar y mostrar el resultado
       setIsTyping(true);
 
       if (abortControllerRef.current) {
@@ -548,84 +495,40 @@ IMPORTANTE:
       }
       abortControllerRef.current = new AbortController();
 
-      // Variables para control de repetición
-      let lastChunk = "";
-      let repetitionCount = 0;
-      const maxRepetition = 3;
-
-    await askDeepSeekStream(
-  deepSeekPrompt,
-  (chunk) => {
-    setChats((prevChats) => {
-      const newChats = prevChats.map((chat) => {
-        if (chat.id === activeChat) {
-          const updated = [...chat.messages];
-          const currentText = updated[botIndex]?.text || "";
-
-          // 🔍 Prevención mejorada de repeticiones semánticas
-          const last150 = currentText.slice(-150).toLowerCase();
-          const chunkLower = chunk.toLowerCase();
-
-          // Detectar repeticiones parciales o loops de adjetivos
-          if (
-            chunkLower.includes("mente ") || // detecta cadenas tipo "ambientalmente", "globalmente"
-            (last150.includes(chunkLower.trim()) && chunkLower.length > 5)
-          ) {
-            repetitionCount++;
-            if (repetitionCount >= 2) {
-              console.log("🛑 Repetición detectada → stream detenido");
-              if (abortControllerRef.current) abortControllerRef.current.abort();
+      await askDeepSeekStream(
+        deepSeekPrompt,
+        (chunk) => {
+          setChats((prevChats) => {
+            const newChats = prevChats.map((chat) => {
+              if (chat.id === activeChat) {
+                const updated = [...chat.messages];
+                updated[botIndex] = {
+                  sender: "bot",
+                  text: (updated[botIndex]?.text || "") + chunk
+                };
+                return { ...chat, messages: updated };
+              }
               return chat;
-            }
-          } else {
-            repetitionCount = 0;
-          }
-
-          // Verificar longitud aproximada (protección extra)
-          if (estimateTokens(currentText + chunk) > 1200) {
-            console.log("⚠️ Alcanzando límite de tokens, deteniendo stream...");
-            if (abortControllerRef.current) abortControllerRef.current.abort();
-            return chat;
-          }
-
-          updated[botIndex] = {
-            sender: "bot",
-            text: currentText + chunk,
-          };
-          return { ...chat, messages: updated };
-        }
-        return chat;
-      });
-      localStorage.setItem("chats", JSON.stringify(newChats));
-      return newChats;
-    });
-  },
-  abortControllerRef.current.signal,
-  {
-    max_tokens: 800,
-    temperature: 0.3, // 🔧 menor creatividad → menos loops
-
-          stop: ["\n\n\n", "---", "***"] // Paradas adicionales para evitar repeticiones
-        }
+            });
+            localStorage.setItem("chats", JSON.stringify(newChats));
+            return newChats;
+          });
+        },
+        abortControllerRef.current.signal
       );
 
-      console.log("✅ Búsqueda completada con control de tokens y repeticiones");
+      console.log("✅ Búsqueda híbrida completada");
 
     } catch (err) {
-      console.error("❌ Error en búsqueda:", err);
+      console.error("❌ Error en búsqueda híbrida:", err);
       
-      // Si el error es por límite de tokens, mostrar mensaje específico
-      const errorMessage = err.message.includes('token') || err.message.includes('length') 
-        ? "❌ La respuesta excedió el límite de longitud. Intenta con una búsqueda más específica."
-        : `❌ Error: ${err.message}`;
-
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: errorMessage
+              text: `❌ Error al procesar la búsqueda: ${err.message}` 
             };
             return { ...chat, messages: updated };
           }
@@ -767,7 +670,7 @@ IMPORTANTE:
             </button>
             <button
               onClick={handleSearch}
-              title="Búsqueda avanzada con análisis optimizado"
+              title="Búsqueda avanzada con análisis"
               disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >
@@ -808,7 +711,7 @@ IMPORTANTE:
             </button>
             <button
               onClick={handleSearch}
-              title="Búsqueda avanzada con análisis optimizado"
+              title="Búsqueda avanzada con análisis"
               disabled={!input.trim() || isTyping || isScraping}
               style={{ marginLeft: 4 }}
             >

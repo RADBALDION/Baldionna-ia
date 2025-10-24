@@ -1,31 +1,23 @@
-// api.js
 // Alternativa nueva key
-export async function askDeepSeekStream(prompt, onChunk, signal, options = {}) {
+export async function askDeepSeekStream(prompt, onChunk, signal) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
   const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || ""; // Usa la misma variable
+
+  console.log("Usando ...");
 
   if (!API_KEY) {
     throw new Error(" No se encontró la API key.");
   }
 
-  // Soportar tanto max_tokens (snake_case) como maxTokens (camelCase)
-  const max_tokens = options.max_tokens ?? options.maxTokens ?? 80000;
-  const temperature = options.temperature ?? 0.75;
-  const top_p = options.top_p ?? 0.9;
-  const presence_penalty = options.presence_penalty ?? 0.3;
-  const frequency_penalty = options.frequency_penalty ?? 0.25;
-  const repetition_penalty = options.repetition_penalty ?? 1.1;
-  const stream = options.stream ?? true;
-
   const body = {
     model: "deepseek/deepseek-chat", // Modelo específico 
-    stream,
-    max_tokens,
-    temperature,
-    top_p,
-    presence_penalty,
-    frequency_penalty,
-    repetition_penalty,
+    stream: true,
+    max_tokens: 80000, //
+    temperature: 0.75,  //mas creatividad y riqueza narrativa
+    top_p: 0.9,  //variedad sin perder coherencia
+    presence_penalty: 0.3,  //motiva explorar nuevos temas o escenas
+    frequency_penalty: 0.25, //evita repeticiones
+    repetition_penalty: 1.1,  //reduce redundancia
     messages: [
       {
         role: "system",
@@ -80,7 +72,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
       throw new Error(`Error ${resp.status}: ${errorText}`);
     }
 
-    // Stream reader
+    // ... el resto del código del stream igual ...
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
 
