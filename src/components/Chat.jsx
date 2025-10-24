@@ -255,7 +255,7 @@ export default function Chat() {
     try {
       console.log("🔍 Scraping con CORS proxy:", url);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+      const timeout = setTimeout(() => controller.abort(), 20000); // 20 segundos timeout
 
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
       
