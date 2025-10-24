@@ -553,52 +553,58 @@ IMPORTANTE:
       let repetitionCount = 0;
       const maxRepetition = 3;
 
-      await askDeepSeekStream(
-        deepSeekPrompt,
-        (chunk) => {
-          setChats((prevChats) => {
-            const newChats = prevChats.map((chat) => {
-              if (chat.id === activeChat) {
-                const updated = [...chat.messages];
-                const currentText = updated[botIndex]?.text || "";
-                
-                // Verificar repeticiones
-                if (chunk === lastChunk) {
-                  repetitionCount++;
-                  if (repetitionCount >= maxRepetition) {
-                    console.log("🛑 Detectada repetición excesiva, deteniendo...");
-                    if (abortControllerRef.current) {
-                      abortControllerRef.current.abort();
-                    }
-                    return chat;
-                  }
-                } else {
-                  repetitionCount = 0;
-                  lastChunk = chunk;
-                }
+    await askDeepSeekStream(
+  deepSeekPrompt,
+  (chunk) => {
+    setChats((prevChats) => {
+      const newChats = prevChats.map((chat) => {
+        if (chat.id === activeChat) {
+          const updated = [...chat.messages];
+          const currentText = updated[botIndex]?.text || "";
 
-                // Verificar longitud aproximada para prevenir desbordamiento
-                if (estimateTokens(currentText + chunk) > 1500) {
-                  console.log("⚠️ Alcanzando límite de tokens, cortando respuesta...");
-                  return chat;
-                }
-                
-                updated[botIndex] = {
-                  sender: "bot",
-                  text: currentText + chunk
-                };
-                return { ...chat, messages: updated };
-              }
+          // 🔍 Prevención mejorada de repeticiones semánticas
+          const last150 = currentText.slice(-150).toLowerCase();
+          const chunkLower = chunk.toLowerCase();
+
+          // Detectar repeticiones parciales o loops de adjetivos
+          if (
+            chunkLower.includes("mente ") || // detecta cadenas tipo "ambientalmente", "globalmente"
+            (last150.includes(chunkLower.trim()) && chunkLower.length > 5)
+          ) {
+            repetitionCount++;
+            if (repetitionCount >= 2) {
+              console.log("🛑 Repetición detectada → stream detenido");
+              if (abortControllerRef.current) abortControllerRef.current.abort();
               return chat;
-            });
-            localStorage.setItem("chats", JSON.stringify(newChats));
-            return newChats;
-          });
-        },
-        abortControllerRef.current.signal,
-        { 
-          max_tokens: 800,
-          temperature: 0.7,
+            }
+          } else {
+            repetitionCount = 0;
+          }
+
+          // Verificar longitud aproximada (protección extra)
+          if (estimateTokens(currentText + chunk) > 1200) {
+            console.log("⚠️ Alcanzando límite de tokens, deteniendo stream...");
+            if (abortControllerRef.current) abortControllerRef.current.abort();
+            return chat;
+          }
+
+          updated[botIndex] = {
+            sender: "bot",
+            text: currentText + chunk,
+          };
+          return { ...chat, messages: updated };
+        }
+        return chat;
+      });
+      localStorage.setItem("chats", JSON.stringify(newChats));
+      return newChats;
+    });
+  },
+  abortControllerRef.current.signal,
+  {
+    max_tokens: 800,
+    temperature: 0.3, // 🔧 menor creatividad → menos loops
+
           stop: ["\n\n\n", "---", "***"] // Paradas adicionales para evitar repeticiones
         }
       );
