@@ -199,7 +199,8 @@ export default function Chat() {
             return newChats;
           });
         },
-        abortControllerRef.current.signal
+        abortControllerRef.current.signal,
+         { maxTokens: 80000 } // Asegurarnos de que este parámetro se pasa correctamente
       );
     } catch (err) {
       console.error("Error askDeepSeekStream:", err);
