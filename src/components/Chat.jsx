@@ -597,7 +597,7 @@ IMPORTANTE:
         },
         abortControllerRef.current.signal,
         { 
-          max_tokens: 1200,
+          max_tokens: 800,
           temperature: 0.7,
           stop: ["\n\n\n", "---", "***"] // Paradas adicionales para evitar repeticiones
         }
