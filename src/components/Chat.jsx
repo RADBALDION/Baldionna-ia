@@ -21,10 +21,10 @@ export default function Chat() {
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
-    model: "Baldionna-ia A1"
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
+
 
   const listRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -218,23 +218,17 @@ export default function Chat() {
     }
   };
 
-  // SCRAPING CON JINA AI - CON TIMEOUT
+  // SCRAPING CON JINA AI - CON TU API KEY
   const scrapeWithJinaAI = async (url) => {
     try {
       console.log("🔍 Scraping con Jina AI:", url);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
-
       const response = await fetch(`https://r.jina.ai/${url}`, {
         headers: {
           'Authorization': 'Bearer jina_8b9cf0c3d9b947419d845f92d52552f43v7gpNPDJJUxA1HuXLINb7Q9lvLr',
           'X-With-Generated-Alt': 'true'
-        },
-        signal: controller.signal
+        }
       });
       
-      clearTimeout(timeout);
-
       if (response.ok) {
         const content = await response.text();
         return content
@@ -249,21 +243,14 @@ export default function Chat() {
     }
   };
 
-  // SCRAPING CON CORS PROXY - CON TIMEOUT
+  // SCRAPING CON CORS PROXY - ALTERNATIVA GRATUITA
   const scrapeWithCorsProxy = async (url) => {
     try {
       console.log("🔍 Scraping con CORS proxy:", url);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
-
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
       
-      const response = await fetch(proxyUrl, {
-        signal: controller.signal
-      });
+      const response = await fetch(proxyUrl);
       
-      clearTimeout(timeout);
-
       if (response.ok) {
         const data = await response.json();
         const html = data.contents;
@@ -286,25 +273,10 @@ export default function Chat() {
     }
   };
 
-  // SCRAPING PARALELO MEJORADO CON TIMEOUT
-  const scrapeUrl = async (url) => {
-    try {
-      // Intentar primero con Jina AI
-      let content = await scrapeWithJinaAI(url);
-      
-      // Si falla, intentar con CORS proxy
-      if (!content) {
-        content = await scrapeWithCorsProxy(url);
-      }
-      
-      return content;
-    } catch (error) {
-      console.error("Error en scrapeUrl:", error);
-      return null;
-    }
-  };
+  // Función para delay
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // BUSQUEDA HÍBRIDA MEJORADA - SIN DELAY, CON SCRAPING PARALELO
+  // BUSQUEDA HÍBRIDA MEJORADA
   const handleSearch = async () => {
     if (!input.trim() || !activeChat) return;
 
@@ -349,15 +321,35 @@ export default function Chat() {
       const data = await response.json();
       console.log("📦 Datos recibidos de Serper:", data);
 
-      // FASE 2: Scraping paralelo inmediato
-      console.log("🌐 Fase 2: Realizando scraping paralelo...");
+      // FASE 2: Delay de análisis (10-12 segundos)
+      console.log("⏳ Fase 2: Delay de análisis...");
+      for (let i = 1; i <= 12; i++) {
+        await delay(1000);
+        const progressText = `🔍 Analizando y recopilando información... ${i}/12 segundos`;
+        setChats((prevChats) =>
+          prevChats.map((chat) => {
+            if (chat.id === activeChat) {
+              const updated = [...chat.messages];
+              updated[botIndex] = { 
+                sender: "bot", 
+                text: progressText 
+              };
+              return { ...chat, messages: updated };
+            }
+            return chat;
+          })
+        );
+      }
+
+      // FASE 3: Scraping de contenido
+      console.log("🌐 Fase 3: Realizando scraping...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "📖 Extrayendo contenido completo de las fuentes en paralelo..." 
+              text: "📖 Extrayendo contenido completo de las fuentes..." 
             };
             return { ...chat, messages: updated };
           }
@@ -368,36 +360,31 @@ export default function Chat() {
       let scrapedContent = "";
       
       if (data.organic && data.organic.length > 0) {
-        // Tomar los 4 mejores resultados para scraping paralelo
+        // Tomar los 3-4 mejores resultados para scraping
         const scrapingTargets = data.organic.slice(0, 4);
-        
-        // SCRAPING PARALELO CON PROMISE.ALL
-        console.log("🚀 Iniciando scraping paralelo para", scrapingTargets.length, "URLs");
-        
-        const scrapingPromises = scrapingTargets.map(async (result) => {
-          try {
-            const content = await scrapeUrl(result.link);
-            if (content && content.length > 200) {
-              return {
-                title: result.title,
-                snippet: result.snippet,
-                content: content,
-                link: result.link,
-                date: result.date
-              };
-            }
-            return null;
-          } catch (error) {
-            console.error(`Error scraping ${result.link}:`, error);
-            return null;
+        const successfulScrapes = [];
+
+        for (let i = 0; i < scrapingTargets.length; i++) {
+          const result = scrapingTargets[i];
+          
+          // Hacer scraping del contenido con Jina AI
+          let fullContent = await scrapeWithJinaAI(result.link);
+          
+          // Si Jina AI falla, intentar con CORS proxy
+          if (!fullContent) {
+            fullContent = await scrapeWithCorsProxy(result.link);
           }
-        });
-
-        // Esperar todos los scrapings en paralelo
-        const scrapingResults = await Promise.all(scrapingPromises);
-        const successfulScrapes = scrapingResults.filter(item => item !== null);
-
-        console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
+          
+          if (fullContent && fullContent.length > 200) {
+            successfulScrapes.push({
+              title: result.title,
+              snippet: result.snippet,
+              content: fullContent,
+              link: result.link,
+              date: result.date
+            });
+          }
+        }
 
         // Construir prompt para DeepSeek
         scrapedContent = `Por favor, analiza y resume las siguientes noticias sobre "${query}":\n\n`;
@@ -422,39 +409,12 @@ export default function Chat() {
           });
         }
 
-        if (successfulScrapes.length === 0) {
-          scrapedContent = `No se pudo extraer contenido de las fuentes para "${query}". Se procederá con la búsqueda estándar.`;
-          
-          // Fallback a búsqueda normal
-          setChats((prevChats) =>
-            prevChats.map((chat) => {
-              if (chat.id === activeChat) {
-                const updated = [...chat.messages];
-                updated[botIndex] = { 
-                  sender: "bot", 
-                  text: "🔍 Continuando con búsqueda estándar..." 
-                };
-                return { ...chat, messages: updated };
-              }
-              return chat;
-            })
-          );
-          
-          // Usar solo los snippets de Serper
-          scrapedContent = `Información sobre "${query}":\n\n`;
-          data.organic.slice(0, 6).forEach((result, index) => {
-            scrapedContent += `${index + 1}. ${result.title}\n`;
-            scrapedContent += `Resumen: ${result.snippet}\n`;
-            scrapedContent += `Fuente: ${result.link}\n\n`;
-          });
-        }
-
       } else {
         scrapedContent = `No se encontraron resultados específicos para "${query}". Por favor, intenta con una búsqueda más concreta.`;
       }
 
-      // FASE 3: Procesar con DeepSeek
-      console.log("🤖 Fase 3: Procesando con DeepSeek...");
+      // FASE 4: Procesar con DeepSeek
+      console.log("🤖 Fase 4: Procesando con DeepSeek...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
@@ -621,7 +581,7 @@ export default function Chat() {
             ))}
           </div>
 
-          {/* Configuración */}
+                    {/* Configuración */}
           <div className="sidebar-footer">
             <button onClick={() => setSettingsOpen(true)}>
               <Settings size={18} /> Configuración
@@ -636,6 +596,9 @@ export default function Chat() {
           </div>
         </div> 
       )} 
+
+     
+      
 
       {/* Botón para abrir sidebar */}
       {!sidebarOpen && (
@@ -721,77 +684,79 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Modal de Configuración */}
-      {settingsOpen && (
-        <div className="settings-modal">
-          <div className="settings-content">
-            <h3>Configuración</h3>
+ {/* Modal de Configuración */}
+{settingsOpen && (
+  <div className="settings-modal">
+    <div className="settings-content">
+      <h3>Configuración</h3>
 
-            {/* Tema */}
-            <div className="settings-row">
-              <span>Tema</span>
-              <button
-                onClick={() =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    theme: prev.theme === "light" ? "dark" : "light",
-                  }))
-                }
-              >
-                {settings.theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-                {settings.theme === "light" ? "Modo oscuro" : "Modo claro"}
-              </button>
-            </div>
+      {/* Tema */}
+      <div className="settings-row">
+        <span>Tema</span>
+        <button
+          onClick={() =>
+            setSettings((prev) => ({
+              ...prev,
+              theme: prev.theme === "light" ? "dark" : "light",
+            }))
+          }
+        >
+          {settings.theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+          {settings.theme === "light" ? "Modo oscuro" : "Modo claro"}
+        </button>
+      </div>
 
-            {/* Posición barra */}
-            <div className="settings-row">
-              <span>Posición de barra de texto</span>
-              <select
-                value={settings.inputPosition}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, inputPosition: e.target.value }))
-                }
-              >
-                <option value="top">Arriba</option>
-                <option value="bottom">Abajo</option>
-              </select>
-            </div>
+      {/* Posición barra */}
+      <div className="settings-row">
+        <span>Posición de barra de texto</span>
+        <select
+          value={settings.inputPosition}
+          onChange={(e) =>
+            setSettings((prev) => ({ ...prev, inputPosition: e.target.value }))
+          }
+        >
+          <option value="top">Arriba</option>
+          <option value="bottom">Abajo</option>
+        </select>
+      </div>
 
-            <div className="settings-footer">
-              <button onClick={() => setSettingsOpen(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Modelos */}
-      {modelsOpen && (
-        <div className="settings-modal">
-          <div className="settings-content">
-            <h3>Modelos disponibles</h3>
-
-            <div className="model-slider">
-              {["Baldionna-ia A1", "Baldionna-ia A2", "B-IA"].map((model) => (
-                <div
-                  key={model}
-                  className={`model-option ${settings.model === model ? "active" : ""}`}
-                  onClick={() => setSettings((prev) => ({ ...prev, model }))}
-                >
-                  {model}
-                </div>
-              ))}
-            </div>
-
-            <p className="model-info">
-              Modelo actual: <strong>{settings.model}</strong>
-            </p>
-
-            <div className="settings-footer">
-              <button onClick={() => setModelsOpen(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="settings-footer">
+        <button onClick={() => setSettingsOpen(false)}>Cerrar</button>
+      </div>
     </div>
-  );
-}
+  </div>
+)}
+
+
+{/* Modal de Modelos */}
+{modelsOpen && (
+  <div className="settings-modal">
+    <div className="settings-content">
+      <h3>Modelos disponibles</h3>
+
+      <div className="model-slider">
+        {["Baldionna-ia A1", "Baldionna-ia A2", "B-IA"].map((model) => (
+          <div
+            key={model}
+            className={`model-option ${settings.model === model ? "active" : ""}`}
+            onClick={() => setSettings((prev) => ({ ...prev, model }))}
+          >
+            {model}
+          </div>
+        ))}
+      </div>
+
+      <p className="model-info">
+        Modelo actual: <strong>{settings.model}</strong>
+      </p>
+
+      <div className="settings-footer">
+        <button onClick={() => setModelsOpen(false)}>Cerrar</button>
+      </div>
+    </div>
+  </div>
+)}
+
+</div>
+);
+}  
