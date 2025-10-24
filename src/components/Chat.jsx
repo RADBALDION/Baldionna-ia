@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { askDeepSeekStream } from "../lib/api";
+import { askDeepSeekStream, askDeepSeekSearch } from "../lib/api";
 import "./Chat.css";
 import { 
   Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
@@ -131,23 +131,41 @@ export default function Chat() {
     return html;
   };
 
-  // Función para estimar tokens (aproximación)
-  const estimateTokens = (text) => {
-    return Math.ceil(text.length / 4);
-  };
-
-  // Función para limitar contenido por tokens
-  const limitContentByTokens = (content, maxTokens = 6000) => {
-    const estimatedTokens = estimateTokens(content);
-    if (estimatedTokens <= maxTokens) {
-      return content;
+  // Función para detectar patrones repetitivos
+  const detectRepetitivePattern = (text) => {
+    const lines = text.split('\n');
+    const lastFewLines = lines.slice(-5);
+    
+    // Detectar líneas que son solo listas de palabras sin puntuación
+    const wordListPattern = /^[a-zA-ZáéíóúñÑ]{5,20}([,\s]+[a-zA-ZáéíóúñÑ]{5,20}){4,}$/;
+    
+    for (const line of lastFewLines) {
+      if (wordListPattern.test(line.trim())) {
+        console.log("🚨 Detectado patrón repetitivo de lista de palabras");
+        return true;
+      }
     }
     
-    const ratio = maxTokens / estimatedTokens;
-    const maxLength = Math.floor(content.length * ratio);
-    console.log(`📏 Limitando contenido: ${estimatedTokens} → ${maxTokens} tokens`);
+    // Detectar repetición excesiva de la misma palabra
+    const words = text.split(/\s+/);
+    const wordCount = {};
+    words.forEach(word => {
+      const cleanWord = word.toLowerCase().replace(/[^a-záéíóúñ]/g, '');
+      if (cleanWord.length > 4) {
+        wordCount[cleanWord] = (wordCount[cleanWord] || 0) + 1;
+      }
+    });
     
-    return content.substring(0, maxLength) + "... [contenido recortado por límite]";
+    const repeatedWords = Object.entries(wordCount)
+      .filter(([_, count]) => count > 8)
+      .map(([word]) => word);
+    
+    if (repeatedWords.length > 0) {
+      console.log("🚨 Palabras repetidas en exceso:", repeatedWords);
+      return true;
+    }
+    
+    return false;
   };
 
   // Enviar mensaje o detener
@@ -206,9 +224,21 @@ export default function Chat() {
             const newChats = prevChats.map((chat) => {
               if (chat.id === activeChat) {
                 const updated = [...chat.messages];
+                const currentText = updated[botIndex]?.text || "";
+                const newText = currentText + chunk;
+                
+                // Verificar patrones repetitivos
+                if (detectRepetitivePattern(newText)) {
+                  console.log("🛑 Cortando por patrón repetitivo detectado");
+                  if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                  }
+                  return chat;
+                }
+                
                 updated[botIndex] = {
                   sender: "bot",
-                  text: (updated[botIndex]?.text || "") + chunk
+                  text: newText
                 };
                 return { ...chat, messages: updated };
               }
@@ -219,7 +249,7 @@ export default function Chat() {
           });
         },
         abortControllerRef.current.signal,
-        { maxTokens: 4000 }
+        { maxTokens: 80000 } // Chat normal: máximo tokens
       );
     } catch (err) {
       console.error("Error askDeepSeekStream:", err);
@@ -259,7 +289,7 @@ export default function Chat() {
         const content = await response.text();
         return content
           .replace(/\s+/g, ' ')
-          .substring(0, 3000)
+          .substring(0, 2500)
           .trim();
       }
       return null;
@@ -296,7 +326,7 @@ export default function Chat() {
         
         return content
           .replace(/\s+/g, ' ')
-          .substring(0, 2000)
+          .substring(0, 1500)
           .trim();
       }
       return null;
@@ -330,12 +360,12 @@ export default function Chat() {
     }
   };
 
-  // BUSQUEDA HÍBRIDA MEJORADA - CON CONTROL DE TOKENS Y EVITAR REPETICIONES
+  // BUSQUEDA HÍBRIDA MEJORADA - USANDO API ESPECÍFICA PARA BÚSQUEDAS
   const handleSearch = async () => {
     if (!input.trim() || !activeChat) return;
 
     const query = input.trim();
-    console.log("🔍 Iniciando búsqueda híbrida con control de tokens:", query);
+    console.log("🔍 Iniciando búsqueda híbrida con API específica:", query);
 
     // Agrega mensajes al chat
     const userMessage = { sender: "user", text: query };
@@ -366,7 +396,7 @@ export default function Chat() {
           q: query,
           gl: "es",
           hl: "es",
-          num: 6
+          num: 5
         })
       });
 
@@ -375,15 +405,15 @@ export default function Chat() {
       const data = await response.json();
       console.log("📦 Datos recibidos de Serper:", data);
 
-      // FASE 2: Scraping paralelo controlado
-      console.log("🌐 Fase 2: Realizando scraping paralelo controlado...");
+      // FASE 2: Scraping paralelo ultra-conservador
+      console.log("🌐 Fase 2: Realizando scraping paralelo...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "📖 Extrayendo contenido completo de las fuentes..." 
+              text: "📖 Extrayendo contenido de fuentes confiables..." 
             };
             return { ...chat, messages: updated };
           }
@@ -394,21 +424,20 @@ export default function Chat() {
       let scrapedContent = "";
       
       if (data.organic && data.organic.length > 0) {
-        // Filtrar y tomar solo 3 resultados para scraping
+        // Tomar solo 2 resultados para scraping
         const scrapingTargets = data.organic
           .filter(result => 
             !result.link.includes('youtube.com') && 
             !result.link.includes('instagram.com') &&
             !result.link.includes('tiktok.com')
           )
-          .slice(0, 3);
+          .slice(0, 2);
 
         console.log("🚀 URLs válidas para scraping:", scrapingTargets.length);
 
         let successfulScrapes = [];
 
         if (scrapingTargets.length > 0) {
-          // SCRAPING PARALELO CONTROLADO
           const scrapingPromises = scrapingTargets.map(async (result) => {
             try {
               const content = await scrapeUrl(result.link);
@@ -417,13 +446,11 @@ export default function Chat() {
                   title: result.title,
                   snippet: result.snippet,
                   content: content,
-                  link: result.link,
-                  date: result.date
+                  link: result.link
                 };
               }
               return null;
             } catch (error) {
-              console.error(`Error scraping ${result.link}:`, error);
               return null;
             }
           });
@@ -436,43 +463,35 @@ export default function Chat() {
           console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
         }
 
-        // CONSTRUIR CONTENIDO CONTROLADO
-        let rawContent = `INFORME SOBRE: "${query}"\n\nFUENTES PRINCIPALES:\n`;
+        // CONSTRUIR PROMPT CONCISO
+        scrapedContent = `Analiza esta información sobre "${query}":\n\n`;
 
         if (successfulScrapes.length > 0) {
           successfulScrapes.forEach((item, index) => {
-            rawContent += `\n--- FUENTE ${index + 1} ---\n`;
-            rawContent += `TÍTULO: ${item.title}\n`;
-            rawContent += `RESUMEN: ${item.snippet}\n`;
-            rawContent += `CONTENIDO: ${item.content.substring(0, 1000)}\n`;
-            rawContent += `FUENTE: ${item.link}\n`;
+            scrapedContent += `FUENTE ${index + 1}:\n`;
+            scrapedContent += `Título: ${item.title}\n`;
+            scrapedContent += `Contenido: ${item.content.substring(0, 500)}\n\n`;
           });
         }
 
-        // AGREGAR CONTEXTO ADICIONAL LIMITADO
-        rawContent += `\n--- CONTEXTO ADICIONAL ---\n`;
-        data.organic.slice(0, 4).forEach((result, index) => {
-          rawContent += `${index + 1}. ${result.title}\n`;
-          rawContent += `   RESUMEN: ${result.snippet}\n`;
-          rawContent += `   URL: ${result.link}\n\n`;
+        // Agregar contexto adicional breve
+        data.organic.slice(0, 3).forEach((result, index) => {
+          scrapedContent += `- ${result.title}: ${result.snippet}\n`;
         });
 
-        // APLICAR LÍMITE DE TOKENS AL CONTENIDO COMPLETO
-        scrapedContent = limitContentByTokens(rawContent, 4000);
-
       } else {
-        scrapedContent = `No se encontraron resultados específicos para "${query}".`;
+        scrapedContent = `Consulta: "${query}"`;
       }
 
-      // FASE 3: Procesar con DeepSeek con límites claros y prevención de repeticiones
-      console.log("🤖 Fase 3: Procesando con DeepSeek (con límites y anti-repetición)...");
+      // FASE 3: Procesar con API ESPECÍFICA PARA BÚSQUEDAS
+      console.log("🤖 Fase 3: Procesando con API de búsqueda...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: "🧠 Procesando información de manera óptima..." 
+              text: "🧠 Sintetizando información..." 
             };
             return { ...chat, messages: updated };
           }
@@ -480,50 +499,12 @@ export default function Chat() {
         })
       );
 
-      // PROMPT MEJORADO CON LÍMITES EXPLÍCITOS Y PREVENCIÓN DE REPETICIONES
-      const deepSeekPrompt = `Eres un analista experto. Genera un informe bien estructurado pero CONCISO.
+      // PROMPT MÁS SIMPLE PARA BÚSQUEDAS
+      const searchPrompt = `Como analista experto, resume esta información de manera concisa (máximo 300 palabras):
 
-TEMA: "${query}"
-
-INFORMACIÓN RECOPILADA:
 ${scrapedContent}
 
-INSTRUCCIONES CRÍTICAS:
-- LÍMITE: MÁXIMO 800 palabras (aproximadamente 1000 tokens)
-- ESTRUCTURA: Usa markdown claro con encabezados
-- CONTENIDO: Enfócate en lo más relevante
-- EVITA: 
-  * Repeticiones de palabras o frases
-  * Listas interminables de adjetivos
-  * Contenido redundante
-  * Párrafos excesivamente largos
-  * Divagaciones sin sentido
-- FORMATO: Párrafos coherentes y bien estructurados
-- CALIDAD: Información verificable y específica
-
-ESTRUCTURA SUGERIDA (breve y concisa):
-# Análisis: [Tema]
-
-## Resumen Ejecutivo
-[2-3 párrafos máximo con información clave]
-
-## Contexto y Antecedentes  
-[2 párrafos con información histórica relevante]
-
-## Análisis Principal
-[3-4 párrafos con los puntos más importantes]
-
-## Impacto y Consecuencias
-[2 párrafos sobre efectos y repercusiones]
-
-## Perspectivas Futuras
-[1-2 párrafos con proyecciones]
-
-IMPORTANTE: 
-- Si excedes el límite de tokens, la respuesta se cortará
-- Evita listas interminables de adjetivos sin sentido
-- Mantén la coherencia y evita divagaciones
-- Usa lenguaje claro y directo`;
+Resumen conciso:`;
 
       // Limpiar el mensaje actual
       setChats((prevChats) =>
@@ -540,7 +521,7 @@ IMPORTANTE:
         })
       );
 
-      // Usar DeepSeek con parámetros optimizados
+      // USAR LA NUEVA FUNCIÓN ESPECÍFICA PARA BÚSQUEDAS
       setIsTyping(true);
 
       if (abortControllerRef.current) {
@@ -549,43 +530,51 @@ IMPORTANTE:
       abortControllerRef.current = new AbortController();
 
       // Variables para control de repetición
-      let lastChunk = "";
-      let repetitionCount = 0;
-      const maxRepetition = 3;
+      let lastContent = "";
+      let repetitionScore = 0;
 
-      await askDeepSeekStream(
-        deepSeekPrompt,
+      await askDeepSeekSearch(
+        searchPrompt,
         (chunk) => {
           setChats((prevChats) => {
             const newChats = prevChats.map((chat) => {
               if (chat.id === activeChat) {
                 const updated = [...chat.messages];
                 const currentText = updated[botIndex]?.text || "";
+                const newText = currentText + chunk;
                 
-                // Verificar repeticiones
-                if (chunk === lastChunk) {
-                  repetitionCount++;
-                  if (repetitionCount >= maxRepetition) {
-                    console.log("🛑 Detectada repetición excesiva, deteniendo...");
-                    if (abortControllerRef.current) {
-                      abortControllerRef.current.abort();
-                    }
-                    return chat;
-                  }
-                } else {
-                  repetitionCount = 0;
-                  lastChunk = chunk;
+                // Detectar patrones repetitivos
+                if (detectRepetitivePattern(newText)) {
+                  repetitionScore += 2;
+                  console.log(`⚠️ Patrón repetitivo detectado. Score: ${repetitionScore}`);
                 }
-
-                // Verificar longitud aproximada para prevenir desbordamiento
-                if (estimateTokens(currentText + chunk) > 1500) {
-                  console.log("⚠️ Alcanzando límite de tokens, cortando respuesta...");
-                  return chat;
+                
+                // Detectar repetición de contenido similar
+                if (lastContent && newText.includes(lastContent.substring(lastContent.length - 100))) {
+                  repetitionScore += 1;
+                  console.log(`⚠️ Contenido repetido. Score: ${repetitionScore}`);
+                }
+                
+                lastContent = newText;
+                
+                // Cortar si detectamos problemas de repetición
+                if (repetitionScore >= 3) {
+                  console.log("🛑 Cortando respuesta por repetición");
+                  if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                  }
+                  
+                  // Si se corta, agregar mensaje indicativo
+                  updated[botIndex] = {
+                    sender: "bot",
+                    text: currentText + "\n\n[Respuesta cortada para evitar contenido repetitivo]"
+                  };
+                  return { ...chat, messages: updated };
                 }
                 
                 updated[botIndex] = {
                   sender: "bot",
-                  text: currentText + chunk
+                  text: newText
                 };
                 return { ...chat, messages: updated };
               }
@@ -595,22 +584,16 @@ IMPORTANTE:
             return newChats;
           });
         },
-        abortControllerRef.current.signal,
-        { 
-          max_tokens: 800,
-          temperature: 0.7,
-          stop: ["\n\n\n", "---", "***"] // Paradas adicionales para evitar repeticiones
-        }
+        abortControllerRef.current.signal
       );
 
-      console.log("✅ Búsqueda completada con control de tokens y repeticiones");
+      console.log("✅ Búsqueda completada con API específica");
 
     } catch (err) {
       console.error("❌ Error en búsqueda:", err);
       
-      // Si el error es por límite de tokens, mostrar mensaje específico
       const errorMessage = err.message.includes('token') || err.message.includes('length') 
-        ? "❌ La respuesta excedió el límite de longitud. Intenta con una búsqueda más específica."
+        ? "❌ La respuesta fue interrumpida para evitar contenido repetitivo."
         : `❌ Error: ${err.message}`;
 
       setChats((prevChats) =>

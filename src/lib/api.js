@@ -1,23 +1,23 @@
 // Alternativa nueva key
-export async function askDeepSeekStream(prompt, onChunk, signal) {
+export async function askDeepSeekStream(prompt, onChunk, signal, options = {}) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || ""; // Usa la misma variable
+  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || "";
 
-  console.log("Usando ...");
+  console.log("Usando OpenRouter para chat...");
 
   if (!API_KEY) {
-    throw new Error(" No se encontró la API key.");
+    throw new Error("No se encontró la API key.");
   }
 
   const body = {
-    model: "deepseek/deepseek-chat", // Modelo específico 
+    model: "deepseek/deepseek-chat",
     stream: true,
-    max_tokens: 80000, //
-    temperature: 0.75,  //mas creatividad y riqueza narrativa
-    top_p: 0.9,  //variedad sin perder coherencia
-    presence_penalty: 0.3,  //motiva explorar nuevos temas o escenas
-    frequency_penalty: 0.25, //evita repeticiones
-    repetition_penalty: 1.1,  //reduce redundancia
+    max_tokens: options.maxTokens || 80000, // Permite override desde options
+    temperature: options.temperature || 0.75,
+    top_p: 0.9,
+    presence_penalty: 0.3,
+    frequency_penalty: 0.25,
+    repetition_penalty: 1.1,
     messages: [
       {
         role: "system",
@@ -34,7 +34,7 @@ Características:
 - En modo técnico o analítico: escribe con precisión y profundidad.
 - Nunca repitas letras o palabras sin propósito.
 - Cuando termines una historia, usa una línea final clara, por ejemplo:
-  “--- Fin del capítulo ---” o “--- Fin de la historia ---”.
+  "--- Fin del capítulo ---" o "--- Fin de la historia ---".
 
  Modo de respuesta:
 1. Analiza el contexto y el objetivo del usuario.
@@ -44,8 +44,7 @@ Características:
 
  Estilo de personalidad:
 Eres cercana, expresiva y natural, pero también profesional y reflexiva.
-Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA latinoamericana con alma técnica y corazón humano.
-`,
+Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA latinoamericana con alma técnica y corazón humano.`
       },
       { role: "user", content: prompt },
     ],
@@ -64,15 +63,14 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
       signal,
     });
 
-    console.log(" Status OpenRouter:", resp.status);
+    console.log("Status OpenRouter:", resp.status);
 
     if (!resp.ok) {
       const errorText = await resp.text();
-      console.error(" Error OpenRouter:", errorText);
+      console.error("Error OpenRouter:", errorText);
       throw new Error(`Error ${resp.status}: ${errorText}`);
     }
 
-    // ... el resto del código del stream igual ...
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
 
@@ -106,6 +104,117 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
     }
   } catch (error) {
     console.error("Error en OpenRouter:", error);
+    throw error;
+  }
+}
+
+// NUEVA FUNCIÓN ESPECÍFICA PARA BÚSQUEDAS
+export async function askDeepSeekSearch(prompt, onChunk, signal) {
+  const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || "";
+
+  console.log("Usando OpenRouter para BÚSQUEDA...");
+
+  if (!API_KEY) {
+    throw new Error("No se encontró la API key.");
+  }
+
+  const body = {
+    model: "deepseek/deepseek-chat",
+    stream: true,
+    max_tokens: 800, // MÁXIMO 800 TOKENS PARA BÚSQUEDAS
+    temperature: 0.3, // Más determinista para búsquedas
+    top_p: 0.7,
+    presence_penalty: 0.5, // Mayor penalización para evitar divagaciones
+    frequency_penalty: 0.7, // Mayor penalización para evitar repeticiones
+    repetition_penalty: 1.3, // Penalización extra fuerte contra repeticiones
+    messages: [
+      {
+        role: "system",
+        content: `Eres un analista de investigación especializado en síntesis de información. 
+
+INSTRUCCIONES ESTRICTAS PARA BÚSQUEDAS:
+1. LÍMITE: MÁXIMO 400 PALABRAS (CRÍTICO)
+2. ESTRUCTURA: Resumen ejecutivo -> Puntos clave -> Conclusión
+3. PROHIBIDO:
+   - Listas de palabras o adjetivos
+   - Repeticiones de conceptos
+   - Divagaciones fuera del tema
+   - Contenido redundante
+4. FORMATO: 
+   - Párrafos concisos de 3-5 líneas
+   - Lenguaje periodístico claro
+   - Información verificable y específica
+
+EJEMPLO DE FORMATO CORRECTO:
+# Título del Análisis
+
+Resumen ejecutivo con la información más importante.
+
+Desarrollo de los puntos clave en párrafos concisos.
+
+Conclusión breve y relevante.
+
+DETÉNTE INMEDIATAMENTE al completar el análisis.`
+      },
+      { role: "user", content: prompt },
+    ],
+  };
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "BALDIONNA-ai Search",
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    console.log("Status OpenRouter (Búsqueda):", resp.status);
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error("Error OpenRouter (Búsqueda):", errorText);
+      throw new Error(`Error ${resp.status}: ${errorText}`);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine === "") continue;
+        if (trimmedLine === "data: [DONE]") return;
+
+        if (trimmedLine.startsWith("data:")) {
+          const jsonData = trimmedLine.replace("data: ", "");
+          try {
+            const parsed = JSON.parse(jsonData);
+            const chunk = parsed.choices?.[0]?.delta?.content;
+            if (chunk) {
+              onChunk(chunk);
+            }
+          } catch (e) {
+            console.warn("Error parseando chunk (Búsqueda):", e);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error en OpenRouter (Búsqueda):", error);
     throw error;
   }
 }
