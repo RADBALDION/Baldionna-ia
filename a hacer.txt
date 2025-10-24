@@ -7,9 +7,7 @@
 
 ""
 
-
-
-gemini : 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
+OPENROUTER_API_KEY "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"
 /* ============================
   
 ============================ */
