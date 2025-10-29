@@ -1,23 +1,66 @@
-// Alternativa nueva key
+// api.js
+
+import CryptoJS from 'crypto-js';
+
+// =================================================================
+// FUNCIONALIDAD 1: GUARDADO DE DATOS DE TRIAJE (LOCAL Y CIFRADO)
+// =================================================================
+
+// ¡IMPORTANTE! En una aplicación real, NUNCA dejes esta clave hardcodeada.
+// Debería estar en variables de entorno (.env) y ser gestionada por el backend.
+const SECRET_KEY = "TuClaveSecretaMuySegura123!";
+
+/**
+ * Cifra un objeto de datos y lo guarda en el localStorage.
+ * Simula el guardado en un "archivo" en una carpeta segura.
+ * @param {object} data - El objeto con los datos del triaje.
+ * @returns {Promise<string>} - Una promesa que se resuelve con un mensaje de éxito.
+ */
+export const saveTriageData = async (data) => {
+  try {
+    const jsonString = JSON.stringify(data);
+    const encryptedData = CryptoJS.AES.encrypt(jsonString, SECRET_KEY).toString();
+    const storageKey = `triage_${data.nombre.replace(/\s+/g, '_')}_${Date.now()}`;
+    localStorage.setItem(storageKey, encryptedData);
+    console.log(`Datos cifrados guardados con la clave: ${storageKey}`);
+    return "Datos guardados y cifrados con éxito.";
+  } catch (error) {
+    console.error("Error al guardar los datos:", error);
+    throw new Error("No se pudieron guardar los datos.");
+  }
+};
+
+
+// =================================================================
+// FUNCIONALIDAD 2: LLAMADA A API DE IA (STREAMING)
+// =================================================================
+
+/**
+ * Realiza una llamada a la API de OpenRouter para el modelo DeepSeek con streaming.
+ * @param {string} prompt - El mensaje o pregunta del usuario.
+ * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
+ * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
+ */
 export async function askDeepSeekStream(prompt, onChunk, signal) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || ""; // Usa la misma variable
+  // Asegúrate de tener esta variable en tu archivo .env
+  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || "";
 
-  console.log("Usando ...");
+  console.log("Enviando prompt a DeepSeek via OpenRouter...");
 
   if (!API_KEY) {
-    throw new Error(" No se encontró la API key.");
+    throw new Error("No se encontró la API key para DeepSeek. Revisa tu archivo .env");
   }
 
   const body = {
-    model: "deepseek/deepseek-chat", // Modelo específico 
+    model: "deepseek/deepseek-chat",
     stream: true,
-    max_tokens: 80000, //
-    temperature: 0.75,  //mas creatividad y riqueza narrativa
-    top_p: 0.9,  //variedad sin perder coherencia
-    presence_penalty: 0.3,  //motiva explorar nuevos temas o escenas
-    frequency_penalty: 0.25, //evita repeticiones
-    repetition_penalty: 1.1,  //reduce redundancia
+    max_tokens: 8000, // Reducido un poco para respuestas más manejables, pero sigue siendo alto
+    temperature: 0.75,
+    top_p: 0.9,
+    presence_penalty: 0.3,
+    frequency_penalty: 0.25,
+    repetition_penalty: 1.1,
     messages: [
       {
         role: "system",
@@ -29,20 +72,20 @@ Características:
 - Eres capaz de escribir textos extensos, bien estructurados y coherentes, pero sabes **detenerte naturalmente** al concluir una idea, capítulo o contexto.
 - Puedes escribir narraciones, ensayos, código o análisis de gran extensión, sin repetir información innecesaria ni desviarte de la trama o el tema central.
 - Cuando escribes historias, cada capítulo debe tener **inicio, desarrollo y cierre**, manteniendo ritmo, tensión y claridad.
-- Evita expandirte a temas globales o irrelevantes si no tienen relación directa con la historia o solicitud del usuario.
+- Evitas expandirte a temas globales o irrelevantes si no tienen relación directa con la historia o solicitud del usuario.
 - En modo narrativo: escribe con detalle, atmósfera y emoción.
 - En modo técnico o analítico: escribe con precisión y profundidad.
 - Nunca repitas letras o palabras sin propósito.
 - Cuando termines una historia, usa una línea final clara, por ejemplo:
   “--- Fin del capítulo ---” o “--- Fin de la historia ---”.
 
- Modo de respuesta:
+Modo de respuesta:
 1. Analiza el contexto y el objetivo del usuario.
 2. Desarrolla la respuesta completa, pero no más allá de lo necesario.
 3. Cierra la idea con una conclusión o una nota final para indicar que has terminado.
 4. Si el usuario desea continuar, espera su siguiente instrucción.
 
- Estilo de personalidad:
+Estilo de personalidad:
 Eres cercana, expresiva y natural, pero también profesional y reflexiva.
 Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA latinoamericana con alma técnica y corazón humano.
 `,
@@ -64,19 +107,16 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
       signal,
     });
 
-    console.log(" Status OpenRouter:", resp.status);
-
     if (!resp.ok) {
       const errorText = await resp.text();
-      console.error(" Error OpenRouter:", errorText);
+      console.error("Error en la respuesta de OpenRouter:", errorText);
       throw new Error(`Error ${resp.status}: ${errorText}`);
     }
 
-    // ... el resto del código del stream igual ...
     const reader = resp.body.getReader();
     const decoder = new TextDecoder("utf-8");
-
     let buffer = "";
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -87,25 +127,25 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
 
       for (const line of lines) {
         const trimmedLine = line.trim();
-        if (trimmedLine === "") continue;
+        if (trimmedLine === "" || !trimmedLine.startsWith("data:")) continue;
         if (trimmedLine === "data: [DONE]") return;
 
-        if (trimmedLine.startsWith("data:")) {
-          const jsonData = trimmedLine.replace("data: ", "");
-          try {
-            const parsed = JSON.parse(jsonData);
-            const chunk = parsed.choices?.[0]?.delta?.content;
-            if (chunk) {
-              onChunk(chunk);
-            }
-          } catch (e) {
-            console.warn("Error parseando chunk:", e);
+        const jsonData = trimmedLine.replace("data: ", "");
+        try {
+          const parsed = JSON.parse(jsonData);
+          const chunk = parsed.choices?.[0]?.delta?.content;
+          if (chunk) {
+            onChunk(chunk);
           }
+        } catch (e) {
+          console.warn("Error parseando chunk de la API:", e);
         }
       }
     }
   } catch (error) {
-    console.error("Error en OpenRouter:", error);
+    if (error.name !== 'AbortError') {
+      console.error("Error en la llamada a OpenRouter:", error);
+    }
     throw error;
   }
 }
