@@ -1,7 +1,8 @@
 // components/aura.jsx
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react'; // <-- IMPORTA EL ICONO
-import { saveTriageData } from '../api'; // Importamos la función desde api.js
+import { saveTriageData } from '../api.js';
+
 
 // 1. EL COMPONENTE AHORA RECIBE LA PROP 'setView'
 const Aura = ({ setView }) => {
