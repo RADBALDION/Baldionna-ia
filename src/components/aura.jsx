@@ -1,7 +1,7 @@
 // components/aura.jsx
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react'; // <-- IMPORTA EL ICONO
-import { saveTriageData } from '../api.js';
+import { saveTriageData } from '../lib/api.js';
 
 
 // 1. EL COMPONENTE AHORA RECIBE LA PROP 'setView'
