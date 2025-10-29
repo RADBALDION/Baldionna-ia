@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { askDeepSeekStream } from "../lib/api";
 import "./Chat.css";
-import { 
-  Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
-  Settings, Sun, Moon 
-} from "lucide-react";
+
 import { 
   Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
   Settings, Sun, Moon, Activity // <-- importar icono
