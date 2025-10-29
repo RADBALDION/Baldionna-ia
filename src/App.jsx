@@ -1,5 +1,4 @@
 import Chat from "./components/Chat";
-import Aura from "./components/aura";
 
 
 function App() {
