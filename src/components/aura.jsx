@@ -1,8 +1,10 @@
 // components/aura.jsx
 import React, { useState } from 'react';
+import { ArrowLeft } from 'lucide-react'; // <-- IMPORTA EL ICONO
 import { saveTriageData } from '../api'; // Importamos la función desde api.js
 
-const Aura = () => {
+// 1. EL COMPONENTE AHORA RECIBE LA PROP 'setView'
+const Aura = ({ setView }) => {
   // Estado para manejar todos los campos del formulario
   const [formData, setFormData] = useState({
     nombre: '',
@@ -84,7 +86,27 @@ const Aura = () => {
 
   return (
     <div className="aura-container" style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <h1>Triaje Médico Rápido</h1>
+      {/* 2. BARRA SUPERIOR CON TÍTULO Y BOTÓN DE VOLVER */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h1 style={{ margin: 0 }}>Triaje Médico Rápido</h1>
+        <button 
+          onClick={() => setView('chat')} 
+          style={{ 
+            background: 'none', 
+            border: '1px solid #ccc', 
+            padding: '8px 12px', 
+            borderRadius: '5px', 
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px'
+          }}
+          title="Volver al Chat"
+        >
+          <ArrowLeft size={18} /> Volver
+        </button>
+      </div>
+      
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="nombre">Nombre Completo</label>

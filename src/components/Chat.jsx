@@ -5,8 +5,12 @@ import {
   Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
   Settings, Sun, Moon 
 } from "lucide-react";
+import { 
+  Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
+  Settings, Sun, Moon, Activity // <-- importar icono
+} from "lucide-react";
 
-export default function Chat() {
+export default function Chat({ setView }) {
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [input, setInput] = useState("");
@@ -621,7 +625,7 @@ export default function Chat() {
             ))}
           </div>
 
-          {/* Configuración */}
+           {/* Configuración */}
           <div className="sidebar-footer">
             <button onClick={() => setSettingsOpen(true)}>
               <Settings size={18} /> Configuración
@@ -634,6 +638,14 @@ export default function Chat() {
               <Square size={17} /> Modelos
             </button>
           </div>
+
+          {/* 3. AÑADE EL NUEVO BOTÓN AQUÍ */}
+          <div className="sidebar-footer1">
+            <button onClick={() => setView('aura')} title="Ir al Triage Médico Aura">
+              <Activity size={17} /> Aura
+            </button>
+          </div>
+
         </div> 
       )} 
 
