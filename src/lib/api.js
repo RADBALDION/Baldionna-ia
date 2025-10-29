@@ -3,10 +3,10 @@
 import CryptoJS from 'crypto-js';
 
 // =================================================================
-// FUNCIONALIDAD 1: GUARDADO DE DATOS DE TRIAJE (LOCAL Y CIFRADO)
+// GUARDADO DE DATOS DE TRIAJE (LOCAL Y CIFRADO)
 // =================================================================
 
-// ¡IMPORTANTE! En una aplicación real, NUNCA dejes esta clave hardcodeada.
+
 // Debería estar en variables de entorno (.env) y ser gestionada por el backend.
 const SECRET_KEY = "TuClaveSecretaMuySegura123!";
 
@@ -32,7 +32,7 @@ export const saveTriageData = async (data) => {
 
 
 // =================================================================
-// FUNCIONALIDAD 2: LLAMADA A API DE IA (STREAMING)
+// LLAMADA A API DE IA (STREAMING)
 // =================================================================
 
 /**
