@@ -3,7 +3,7 @@ import Chat from "./components/Chat";
 import Aura from "./components/aura";
 
 export default function App() {
-  const [view, setView] = useState("chat"); // Vista inicial: Chat
+  const [view, setView] = useState("chat"); // Vistda inicial: Chat
 
   return (
     <div className="app-container">
