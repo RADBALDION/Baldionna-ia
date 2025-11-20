@@ -147,7 +147,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
 }
 
 // =================================================================
-// NUEVA FUNCIÓN PARA GROK 4.1 FAST
+// NUEVA FUNCIÓN PARA GRK 4.1 FAST
 // =================================================================
 
 /**

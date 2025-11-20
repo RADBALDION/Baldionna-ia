@@ -870,7 +870,7 @@ export default function Chat({ setView }) {
               Modelo actual: <strong>{settings.model}</strong>
             </p>
 
-            {/* Opción de razonamiento para Grok */}
+            {/* Opción de 0azonamiento para Grok */}
             {settings.model === "Grok 4.1 Fast" && (
               <div className="settings-row">
                 <span>Habilitar razonamiento</span>
