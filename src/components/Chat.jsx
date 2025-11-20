@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { askDeepSeekStream } from "../lib/api";
+import { askDeepSeekStream, askGrokStream } from "../lib/api";
 import "./Chat.css";
 
 import { 
@@ -22,7 +22,8 @@ export default function Chat({ setView }) {
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
-    model: "Baldionna-ia A1"
+    model: "Baldionna-ia A1",
+    enableReasoning: true // Nueva opción para habilitar razonamiento en Grok
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -180,30 +181,65 @@ export default function Chat({ setView }) {
     }
     abortControllerRef.current = new AbortController();
 
+    // Obtener historial de mensajes para el contexto
+    const currentChat = updatedChats.find(c => c.id === activeChat);
+    const messagesForContext = currentChat.messages
+      .filter(m => m.sender !== "bot" || m.text.trim() !== "")
+      .map(m => ({ role: m.sender === "user" ? "user" : "assistant", content: m.text }));
+
     try {
-      await askDeepSeekStream(
-        text,
-        (chunk) => {
-          setChats((prevChats) => {
-            const newChats = prevChats.map((chat) => {
-              if (chat.id === activeChat) {
-                const updated = [...chat.messages];
-                updated[botIndex] = {
-                  sender: "bot",
-                  text: (updated[botIndex]?.text || "") + chunk
-                };
-                return { ...chat, messages: updated };
-              }
-              return chat;
+      // Determinar qué API usar según el modelo seleccionado
+      if (settings.model === "Grok 4.1 Fast") {
+        await askGrokStream(
+          text,
+          (chunk, reasoningDetails) => {
+            setChats((prevChats) => {
+              const newChats = prevChats.map((chat) => {
+                if (chat.id === activeChat) {
+                  const updated = [...chat.messages];
+                  updated[botIndex] = {
+                    sender: "bot",
+                    text: (updated[botIndex]?.text || "") + chunk,
+                    reasoningDetails: reasoningDetails || updated[botIndex]?.reasoningDetails
+                  };
+                  return { ...chat, messages: updated };
+                }
+                return chat;
+              });
+              localStorage.setItem("chats", JSON.stringify(newChats));
+              return newChats;
             });
-            localStorage.setItem("chats", JSON.stringify(newChats));
-            return newChats;
-          });
-        },
-        abortControllerRef.current.signal
-      );
+          },
+          abortControllerRef.current.signal,
+          settings.enableReasoning,
+          messagesForContext.slice(0, -1) // Excluir el último mensaje del usuario ya que se pasa como prompt
+        );
+      } else {
+        // Usar DeepSeek para otros modelos
+        await askDeepSeekStream(
+          text,
+          (chunk) => {
+            setChats((prevChats) => {
+              const newChats = prevChats.map((chat) => {
+                if (chat.id === activeChat) {
+                  const updated = [...chat.messages];
+                  updated[botIndex] = {
+                    sender: "bot",
+                    text: (updated[botIndex]?.text || "") + chunk
+                  };
+                  return { ...chat, messages: updated };
+                }
+                return chat;
+              });
+              localStorage.setItem("chats", JSON.stringify(newChats));
+              return newChats;
+            });
+          },
+          abortControllerRef.current.signal
+        );
+      }
     } catch (err) {
-      console.error("Error askDeepSeekStream:", err);
+      console.error("Error en la llamada a la API:", err);
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
@@ -400,7 +436,7 @@ export default function Chat({ setView }) {
 
         console.log(`✅ Scraping completado: ${successfulScrapes.length}/${scrapingTargets.length} exitosos`);
 
-        // Construir prompt para DeepSeek
+        // Construir prompt para el modelo seleccionado
         scrapedContent = `Por favor, analiza y resume las siguientes noticias sobre "${query}":\n\n`;
         
         successfulScrapes.forEach((item, index) => {
@@ -454,8 +490,8 @@ export default function Chat({ setView }) {
         scrapedContent = `No se encontraron resultados específicos para "${query}". Por favor, intenta con una búsqueda más concreta.`;
       }
 
-      // FASE 3: Procesar con DeepSeek
-      console.log("🤖 Fase 3: Procesando con DeepSeek...");
+      // FASE 3: Procesar con el modelo seleccionado
+      console.log("🤖 Fase 3: Procesando con el modelo seleccionado...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
@@ -470,8 +506,8 @@ export default function Chat({ setView }) {
         })
       );
 
-      // Preparar el mensaje para DeepSeek
-      const deepSeekPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
+      // Preparar el mensaje para el modelo
+      const modelPrompt = `Como asistente experto en análisis de noticias, organiza y presenta la siguiente información de manera clara y estructurada en markdown. Incluye los puntos más importantes, resume la información y proporciona un análisis conciso:\n\n${scrapedContent}`;
 
       // Limpiar el mensaje actual y preparar para streaming
       setChats((prevChats) =>
@@ -488,7 +524,7 @@ export default function Chat({ setView }) {
         })
       );
 
-      // Usar DeepSeek para procesar y mostrar el resultado
+      // Usar el modelo seleccionado para procesar y mostrar el resultado
       setIsTyping(true);
 
       if (abortControllerRef.current) {
@@ -496,27 +532,55 @@ export default function Chat({ setView }) {
       }
       abortControllerRef.current = new AbortController();
 
-      await askDeepSeekStream(
-        deepSeekPrompt,
-        (chunk) => {
-          setChats((prevChats) => {
-            const newChats = prevChats.map((chat) => {
-              if (chat.id === activeChat) {
-                const updated = [...chat.messages];
-                updated[botIndex] = {
-                  sender: "bot",
-                  text: (updated[botIndex]?.text || "") + chunk
-                };
-                return { ...chat, messages: updated };
-              }
-              return chat;
+      // Determinar qué API usar según el modelo seleccionado
+      if (settings.model === "Grok 4.1 Fast") {
+        await askGrokStream(
+          modelPrompt,
+          (chunk, reasoningDetails) => {
+            setChats((prevChats) => {
+              const newChats = prevChats.map((chat) => {
+                if (chat.id === activeChat) {
+                  const updated = [...chat.messages];
+                  updated[botIndex] = {
+                    sender: "bot",
+                    text: (updated[botIndex]?.text || "") + chunk,
+                    reasoningDetails: reasoningDetails || updated[botIndex]?.reasoningDetails
+                  };
+                  return { ...chat, messages: updated };
+                }
+                return chat;
+              });
+              localStorage.setItem("chats", JSON.stringify(newChats));
+              return newChats;
             });
-            localStorage.setItem("chats", JSON.stringify(newChats));
-            return newChats;
-          });
-        },
-        abortControllerRef.current.signal
-      );
+          },
+          abortControllerRef.current.signal,
+          settings.enableReasoning
+        );
+      } else {
+        // Usar DeepSeek para otros modelos
+        await askDeepSeekStream(
+          modelPrompt,
+          (chunk) => {
+            setChats((prevChats) => {
+              const newChats = prevChats.map((chat) => {
+                if (chat.id === activeChat) {
+                  const updated = [...chat.messages];
+                  updated[botIndex] = {
+                    sender: "bot",
+                    text: (updated[botIndex]?.text || "") + chunk
+                  };
+                  return { ...chat, messages: updated };
+                }
+                return chat;
+              });
+              localStorage.setItem("chats", JSON.stringify(newChats));
+              return newChats;
+            });
+          },
+          abortControllerRef.current.signal
+        );
+      }
 
       console.log("✅ Búsqueda híbrida completada");
 
@@ -692,7 +756,18 @@ export default function Chat({ setView }) {
           {currentChat?.messages.map((m, i) => (
             <div key={i} className={`message ${m.sender === "user" ? "user" : "bot"}`}>
               {m.sender === "bot" ? (
-                <div dangerouslySetInnerHTML={{ __html: parseMarkdown(m.text) }} />
+                <div>
+                  {/* Mostrar detalles de razonamiento si están disponibles */}
+                  {m.reasoningDetails && settings.model === "Grok 4.1 Fast" && settings.enableReasoning && (
+                    <div className="reasoning-details">
+                      <details>
+                        <summary>Razonamiento del modelo</summary>
+                        <pre>{JSON.stringify(m.reasoningDetails, null, 2)}</pre>
+                      </details>
+                    </div>
+                  )}
+                  <div dangerouslySetInnerHTML={{ __html: parseMarkdown(m.text) }} />
+                </div>
               ) : (
                 m.text
               )}
@@ -780,7 +855,7 @@ export default function Chat({ setView }) {
             <h3>Modelos disponibles</h3>
 
             <div className="model-slider">
-              {["Baldionna-ia A1", "Baldionna-ia A2", "B-IA"].map((model) => (
+              {["Baldionna-ia A1", "Baldionna-ia A2", "B-IA", "Grok 4.1 Fast"].map((model) => (
                 <div
                   key={model}
                   className={`model-option ${settings.model === model ? "active" : ""}`}
@@ -794,6 +869,23 @@ export default function Chat({ setView }) {
             <p className="model-info">
               Modelo actual: <strong>{settings.model}</strong>
             </p>
+
+            {/* Opción de razonamiento para Grok */}
+            {settings.model === "Grok 4.1 Fast" && (
+              <div className="settings-row">
+                <span>Habilitar razonamiento</span>
+                <button
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      enableReasoning: !prev.enableReasoning,
+                    }))
+                  }
+                >
+                  {settings.enableReasoning ? "Desactivar" : "Activar"}
+                </button>
+              </div>
+            )}
 
             <div className="settings-footer">
               <button onClick={() => setModelsOpen(false)}>Cerrar</button>
