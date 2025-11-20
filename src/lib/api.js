@@ -144,7 +144,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
     }
   } catch (error) {
     if (error.name !== 'AbortError') {
-      console.error("Error en la llamada a OpenRouter:", error);
+      console.error("Error en la llamada a OpenRoute:", error);
     }
     throw error;
   }
