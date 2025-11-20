@@ -17,10 +17,6 @@ export default function Chat({ setView }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null);
   const [isScraping, setIsScraping] = useState(false);
-  
-  // Nuevo estado para el sistema de APIs
-  const [currentApiIndex, setCurrentApiIndex] = useState(0);
-  const [apiStatus, setApiStatus] = useState({}); // Para rastrear el estado de cada API
 
   // Estado único de configuración
   const [settings, setSettings] = useState({
@@ -37,83 +33,6 @@ export default function Chat({ setView }) {
   // API Keys desde variables de entorno
   const SERPER_API_KEY = import.meta.env.VITE_SERPER_API_KEY;
   const APP_NAME = import.meta.env.VITE_APP_NAME || "BALDIONNA-ai";
-  
-  // Lista de API keys de DeepSeek
-  const deepSeekApiKeys = [
-    import.meta.env.VITE_DEEPSEEK_API_KEY_1 || import.meta.env.VITE_DEEPSEEK_API_KEY,
-    import.meta.env.VITE_DEEPSEEK_API_KEY_2,
-    import.meta.env.VITE_DEEPSEEK_API_KEY_3,
-    import.meta.env.VITE_DEEPSEEK_API_KEY_4,
-    import.meta.env.VITE_DEEPSEEK_API_KEY_5
-  ].filter(key => key); // Filtrar claves no definidas
-
-  // Función mejorada para manejar múltiples APIs con fallback
-  const askDeepSeekWithFallback = async (prompt, onChunk, signal) => {
-    let lastError = null;
-    
-    // Inicializar estado de las APIs si no está definido
-    if (Object.keys(apiStatus).length === 0) {
-      const initialStatus = {};
-      deepSeekApiKeys.forEach((_, index) => {
-        initialStatus[index] = { status: 'unknown', lastChecked: null };
-      });
-      setApiStatus(initialStatus);
-    }
-    
-    // Intentar con cada API key hasta que una funcione
-    for (let i = 0; i < deepSeekApiKeys.length; i++) {
-      const apiKey = deepSeekApiKeys[i];
-      const apiIndex = (currentApiIndex + i) % deepSeekApiKeys.length;
-      
-      try {
-        console.log(`Intentando con API ${apiIndex + 1}/${deepSeekApiKeys.length}`);
-        setCurrentApiIndex(apiIndex);
-        
-        // Actualizar estado de la API a "probando"
-        setApiStatus(prev => ({
-          ...prev,
-          [apiIndex]: { status: 'testing', lastChecked: new Date() }
-        }));
-        
-        // Llamar a la API con la clave actual
-        await askDeepSeekStream(
-          prompt,
-          onChunk,
-          signal,
-          apiKey // Pasar la API key como parámetro
-        );
-        
-        // Si llegamos aquí, la petición fue exitosa
-        console.log(`API ${apiIndex + 1} funcionó correctamente`);
-        
-        // Actualizar estado de la API a "funcional"
-        setApiStatus(prev => ({
-          ...prev,
-          [apiIndex]: { status: 'working', lastChecked: new Date() }
-        }));
-        
-        // Actualizar el índice actual para la próxima vez
-        setCurrentApiIndex(apiIndex);
-        return;
-        
-      } catch (error) {
-        console.error(`Error con API ${apiIndex + 1}:`, error);
-        lastError = error;
-        
-        // Actualizar estado de la API a "error"
-        setApiStatus(prev => ({
-          ...prev,
-          [apiIndex]: { status: 'error', lastChecked: new Date(), error: error.message }
-        }));
-        
-        // Continuar con la siguiente API key
-        continue;
-      }
-    }
-    
-    // Si todas las API keys fallaron
-    throw lastError || new Error("Todas las APIs de DeepSeek fallaron");
-  };
 
   // Cerrar menús si hago click fuera
   useEffect(() => {
@@ -262,7 +181,7 @@ export default function Chat({ setView }) {
     abortControllerRef.current = new AbortController();
 
     try {
-      await askDeepSeekWithFallback(
+      await askDeepSeekStream(
         text,
         (chunk) => {
           setChats((prevChats) => {
@@ -289,10 +208,7 @@ export default function Chat({ setView }) {
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
             const updated = [...chat.messages];
-            updated[botIndex] = { 
-              sender: "bot", 
-              text: `❌ Error al conectar con las APIs de DeepSeek: ${err.message}. Por favor, intenta más tarde.` 
-            };
+            updated[botIndex] = { sender: "bot", text: "❌ Error al conectar con la API." };
             return { ...chat, messages: updated };
           }
           return chat;
@@ -580,7 +496,7 @@ export default function Chat({ setView }) {
       }
       abortControllerRef.current = new AbortController();
 
-      await askDeepSeekWithFallback(
+      await askDeepSeekStream(
         deepSeekPrompt,
         (chunk) => {
           setChats((prevChats) => {
@@ -613,7 +529,7 @@ export default function Chat({ setView }) {
             const updated = [...chat.messages];
             updated[botIndex] = { 
               sender: "bot", 
-              text: `❌ Error al procesar la búsqueda con las APIs de DeepSeek: ${err.message}` 
+              text: `❌ Error al procesar la búsqueda: ${err.message}` 
             };
             return { ...chat, messages: updated };
           }
@@ -725,19 +641,6 @@ export default function Chat({ setView }) {
             <button onClick={() => setView('aura')} title="Ir al Triage Médico Aura">
               <Activity size={17} /> Aura
             </button>
-          </div>
-
-          {/* Indicador de API actual */}
-          <div className="api-indicator">
-            <span>API DeepSeek: {currentApiIndex + 1}/{deepSeekApiKeys.length}</span>
-            {apiStatus[currentApiIndex] && (
-              <span className={`api-status ${apiStatus[currentApiIndex].status}`}>
-                {apiStatus[currentApiIndex].status === 'working' && '✅'}
-                {apiStatus[currentApiIndex].status === 'testing' && '🔄'}
-                {apiStatus[currentApiIndex].status === 'error' && '❌'}
-                {apiStatus[currentApiIndex].status === 'unknown' && '❓'}
-              </span>
-            )}
           </div>
 
         </div> 
@@ -861,24 +764,6 @@ export default function Chat({ setView }) {
                 <option value="top">Arriba</option>
                 <option value="bottom">Abajo</option>
               </select>
-            </div>
-
-            {/* Estado de las APIs */}
-            <div className="settings-row">
-              <span>Estado de APIs DeepSeek</span>
-              <div className="api-status-list">
-                {deepSeekApiKeys.map((_, index) => (
-                  <div key={index} className="api-status-item">
-                    <span>API {index + 1}</span>
-                    <span className={`api-status ${apiStatus[index]?.status || 'unknown'}`}>
-                      {apiStatus[index]?.status === 'working' && '✅ Funcional'}
-                      {apiStatus[index]?.status === 'testing' && '🔄 Probando'}
-                      {apiStatus[index]?.status === 'error' && '❌ Error'}
-                      {(!apiStatus[index] || apiStatus[index]?.status === 'unknown') && '❓ Sin probar'}
-                    </span>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="settings-footer">
