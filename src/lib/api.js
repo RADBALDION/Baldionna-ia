@@ -6,7 +6,6 @@ import CryptoJS from 'crypto-js';
 // GUARDADO DE DATOS DE TRIAJE (LOCAL Y CIFRADO)
 // =================================================================
 
-
 // Debería estar en variables de entorno (.env) y ser gestionada por el backend.
 const SECRET_KEY = "TuClaveSecretaMuySegura123!";
 
@@ -30,37 +29,47 @@ export const saveTriageData = async (data) => {
   }
 };
 
-
 // =================================================================
-// LLAMADA A API DE IA (STREAMING)
+// LLAMADA A API DE IA (STREAMING) CON MÚLTIPLES KEYS Y FALLBACK
 // =================================================================
 
 /**
  * Realiza una llamada a la API de OpenRouter para el modelo DeepSeek con streaming.
+ * Intenta con múltiples API keys en secuencia hasta que una funcione.
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
+ * @param {string} apiKey - API key específica a usar (opcional, si no se proporciona intentará con todas)
+ * @param {function(number): void} onApiChange - Callback que se ejecuta cuando cambia la API key en uso
  */
-export async function askDeepSeekStream(prompt, onChunk, signal) {
+export async function askDeepSeekStream(prompt, onChunk, signal, apiKey = null, onApiChange = null) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-  // Asegúrate de tener esta variable en tu archivo .env
-  const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || "";
+  
+  // Lista de API keys en orden de preferencia
+  const apiKeys = [
+    apiKey, // API key específica si se proporciona
+    import.meta.env.VITE_DEEPSEEK_API_KEY_1 || import.meta.env.VITE_DEEPSEEK_API_KEY,
+    import.meta.env.VITE_DEEPSEEK_API_KEY_2,
+    import.meta.env.VITE_DEEPSEEK_API_KEY_3,
+    import.meta.env.VITE_DEEPSEEK_API_KEY_4,
+    import.meta.env.VITE_DEEPSEEK_API_KEY_5
+  ].filter(key => key); // Filtrar claves no definidas
+
+  if (apiKeys.length === 0) {
+    throw new Error("No se encontraron API keys para DeepSeek. Revisa tu archivo .env");
+  }
 
   console.log("Enviando prompt a DeepSeek via OpenRouter...");
-
-  if (!API_KEY) {
-    throw new Error("No se encontró la API key para DeepSeek. Revisa tu archivo .env");
-  }
 
   const body = {
     model: "deepseek/deepseek-chat",
     stream: true,
-    max_tokens: 80000, //
-temperature: 0.75, //mas creatividad y riqueza narrativa
-top_p: 0.9, //variedad sin perder coherencia
-presence_penalty: 0.3, //motiva explorar nuevos temas o escenas
-frequency_penalty: 0.25, //evita repeticiones
-repetition_penalty: 1.1, //reduce redundancia
+    max_tokens: 80000,
+    temperature: 0.75, // más creatividad y riqueza narrativa
+    top_p: 0.9, // variedad sin perder coherencia
+    presence_penalty: 0.3, // motiva explorar nuevos temas o escenas
+    frequency_penalty: 0.25, // evita repeticiones
+    repetition_penalty: 1.1, // reduce redundancia
     messages: [
       {
         role: "system",
@@ -77,7 +86,7 @@ Características:
 - En modo técnico o analítico: escribe con precisión y profundidad.
 - Nunca repitas letras o palabras sin propósito.
 - Cuando termines una historia, usa una línea final clara, por ejemplo:
-  “--- Fin del capítulo ---” o “--- Fin de la historia ---”.
+  "--- Fin del capítulo ---" o "--- Fin de la historia ---".
 
 Modo de respuesta:
 1. Analiza el contexto y el objetivo del usuario.
@@ -94,58 +103,98 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
     ],
   };
 
-  try {
-    const resp = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": window.location.origin,
-        "X-Title": "BALDIONNA-ai",
-      },
-      body: JSON.stringify(body),
-      signal,
-    });
+  let lastError = null;
 
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      console.error("Error en la respuesta de OpenRouter:", errorText);
-      throw new Error(`Error ${resp.status}: ${errorText}`);
-    }
+  // Intentar con cada API key hasta que una funcione
+  for (let i = 0; i < apiKeys.length; i++) {
+    const currentApiKey = apiKeys[i];
+    
+    try {
+      console.log(`Intentando con API key ${i + 1}/${apiKeys.length}`);
+      
+      // Notificar cambio de API
+      if (onApiChange) onApiChange(i);
+      
+      const resp = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${currentApiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "BALDIONNA-ai",
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error(`Error con API key ${i + 1}:`, errorText);
+        lastError = new Error(`Error ${resp.status}: ${errorText}`);
+        continue; // Intentar con la siguiente API key
+      }
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      // Si llegamos aquí, la petición fue exitosa
+      console.log(`API key ${i + 1} funcionó correctamente`);
+      
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine === "" || !trimmedLine.startsWith("data:")) continue;
-        if (trimmedLine === "data: [DONE]") return;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-        const jsonData = trimmedLine.replace("data: ", "");
-        try {
-          const parsed = JSON.parse(jsonData);
-          const chunk = parsed.choices?.[0]?.delta?.content;
-          if (chunk) {
-            onChunk(chunk);
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine === "" || !trimmedLine.startsWith("data:")) continue;
+          if (trimmedLine === "data: [DONE]") return;
+
+          const jsonData = trimmedLine.replace("data: ", "");
+          try {
+            const parsed = JSON.parse(jsonData);
+            const chunk = parsed.choices?.[0]?.delta?.content;
+            if (chunk) {
+              onChunk(chunk);
+            }
+          } catch (e) {
+            console.warn("Error parseando chunk de la API:", e);
           }
-        } catch (e) {
-          console.warn("Error parseando chunk de la API:", e);
         }
       }
+      
+      // Si llegamos aquí, la petición fue completada exitosamente
+      return;
+      
+    } catch (error) {
+      console.error(`Error con API key ${i + 1}:`, error);
+      lastError = error;
+      
+      // Si es un AbortError, no continuar con otras APIs
+      if (error.name === 'AbortError') {
+        throw error;
+      }
+      
+      // Continuar con la siguiente API key
+      continue;
     }
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error("Error en la llamada a OpenRouter:", error);
-    }
-    throw error;
   }
+
+  // Si todas las API keys fallaron
+  throw lastError || new Error("Todas las API keys de DeepSeek fallaron");
+}
+
+/**
+ * Función de conveniencia para usar con múltiples API keys sin tener que gestionarlas manualmente
+ * @param {string} prompt - El mensaje o pregunta del usuario.
+ * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
+ * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
+ * @param {function(number): void} onApiChange - Callback que se ejecuta cuando cambia la API key en uso
+ */
+export async function askDeepSeekWithFallback(prompt, onChunk, signal, onApiChange) {
+  return askDeepSeekStream(prompt, onChunk, signal, null, onApiChange);
 }
