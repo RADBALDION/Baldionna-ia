@@ -22,10 +22,9 @@ export default function Chat({ setView }) {
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
-    model: "qwen/qwen3-32b", // Modelo por defecto actualizado
+    // Ya no necesitamos el modelo en la configuración ya que solo usaremos openai/gpt-oss-120b
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [modelsOpen, setModelsOpen] = useState(false);
 
   const listRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -206,7 +205,7 @@ export default function Chat({ setView }) {
       : [];
 
     try {
-      // Usar Groq para todos los modelos
+      // Usar Groq con el modelo openai/gpt-oss-120b
       await askGroqStream(
         text,
         (chunk) => {
@@ -227,7 +226,7 @@ export default function Chat({ setView }) {
           });
         },
         abortControllerRef.current.signal,
-        settings.model,
+        "openai/gpt-oss-120b", // Especificamos el modelo directamente
         messagesForContext.slice(0, -1) // Excluir el último mensaje del usuario ya que se pasa como prompt
       );
     } catch (err) {
@@ -483,7 +482,7 @@ export default function Chat({ setView }) {
       }
 
       // FASE 3: Procesar con el modelo seleccionado
-      console.log("🤖 Fase 3: Procesando con el modelo seleccionado...");
+      console.log("🤖 Fase 3: Procesando con el modelo openai/gpt-oss-120b...");
       setChats((prevChats) =>
         prevChats.map((chat) => {
           if (chat.id === activeChat) {
@@ -516,7 +515,7 @@ export default function Chat({ setView }) {
         })
       );
 
-      // Usar el modelo seleccionado para procesar y mostrar el resultado
+      // Usar el modelo openai/gpt-oss-120b para procesar y mostrar el resultado
       setIsTyping(true);
 
       if (abortControllerRef.current) {
@@ -524,7 +523,7 @@ export default function Chat({ setView }) {
       }
       abortControllerRef.current = new AbortController();
 
-      // Usar Groq para procesar y mostrar el resultado
+      // Usar Groq con el modelo openai/gpt-oss-120b
       await askGroqStream(
         modelPrompt,
         (chunk) => {
@@ -545,7 +544,7 @@ export default function Chat({ setView }) {
           });
         },
         abortControllerRef.current.signal,
-        settings.model
+        "openai/gpt-oss-120b" // Especificamos el modelo directamente
       );
 
       console.log("✅ Búsqueda híbrida completada");
@@ -656,13 +655,6 @@ export default function Chat({ setView }) {
           <div className="sidebar-footer">
             <button onClick={() => setSettingsOpen(true)}>
               <Settings size={18} /> Configuración
-            </button>
-          </div>
-
-          {/* Modelos */}
-          <div className="sidebar-footer1">
-            <button onClick={() => setModelsOpen(true)}>
-              <Square size={17} /> Modelos
             </button>
           </div>
 
@@ -798,46 +790,6 @@ export default function Chat({ setView }) {
 
             <div className="settings-footer">
               <button onClick={() => setSettingsOpen(false)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Modelos */}
-      {modelsOpen && (
-        <div className="settings-modal">
-          <div className="settings-content">
-            <h3>Modelos disponibles</h3>
-
-            <div className="model-slider">
-              {[
-                { id: "qwen/qwen3-32b", name: "Qwen 3 32B" },
-                { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" },
-                { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick 17B" },
-                { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" }
-              ].map((model) => (
-                <div
-                  key={model.id}
-                  className={`model-option ${settings.model === model.id ? "active" : ""}`}
-                  onClick={() => setSettings((prev) => ({ ...prev, model: model.id }))}
-                >
-                  {model.name}
-                </div>
-              ))}
-            </div>
-
-            <p className="model-info">
-              Modelo actual: <strong>{
-                settings.model === "qwen/qwen3-32b" ? "Qwen 3 32B" :
-                settings.model === "llama-3.3-70b-versatile" ? "Llama 3.3 70B Versatile" :
-                settings.model === "meta-llama/llama-4-maverick-17b-128e-instruct" ? "Llama 4 Maverick 17B" :
-                settings.model === "openai/gpt-oss-120b" ? "GPT-OSS 120B" :
-                settings.model
-              }</strong>
-            </p>
-
-            <div className="settings-footer">
-              <button onClick={() => setModelsOpen(false)}>Cerrar</button>
             </div>
           </div>
         </div>
