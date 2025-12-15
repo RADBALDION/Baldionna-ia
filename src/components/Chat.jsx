@@ -4,7 +4,7 @@ import "./Chat.css";
 
 import { 
   Plus, ArrowLeft, MoreVertical, Edit2, Trash2, Send, Square, 
-  Settings, Sun, Moon, Activity // <-- importar icono
+  Settings, Sun, Moon, Activity 
 } from "lucide-react";
 
 export default function Chat({ setView }) {
@@ -15,14 +15,14 @@ export default function Chat({ setView }) {
   const [editingId, setEditingId] = useState(null);
   const [newName, setNewName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(null); // CORREGIDO: Añadido useState
+  const [menuOpen, setMenuOpen] = useState(null);
   const [isScraping, setIsScraping] = useState(false);
 
   // Estado único de configuración
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
-    model: "llama3-70b-8192", // Modelo por defecto de Groq
+    model: "llama3-8b-8192", // Modelo por defecto de Groq
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -811,9 +811,11 @@ export default function Chat({ setView }) {
 
             <div className="model-slider">
               {[
-                { id: "llama3-70b-8192", name: "Llama 3 70B" },
+                { id: "llama3-8b-8192", name: "Llama 3 8B" },
+                { id: "llama3-groq-70b-8192", name: "Llama 3 Groq 70B" },
                 { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
-                { id: "gemma-7b-it", name: "Gemma 7B" }
+                { id: "gemma-7b-it", name: "Gemma 7B" },
+                { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" }
               ].map((model) => (
                 <div
                   key={model.id}
@@ -827,9 +829,11 @@ export default function Chat({ setView }) {
 
             <p className="model-info">
               Modelo actual: <strong>{
-                settings.model === "llama3-70b-8192" ? "Llama 3 70B" :
+                settings.model === "llama3-8b-8192" ? "Llama 3 8B" :
+                settings.model === "llama3-groq-70b-8192" ? "Llama 3 Groq 70B" :
                 settings.model === "mixtral-8x7b-32768" ? "Mixtral 8x7B" :
                 settings.model === "gemma-7b-it" ? "Gemma 7B" :
+                settings.model === "openai/gpt-oss-120b" ? "GPT-OSS 120B" :
                 settings.model
               }</strong>
             </p>
