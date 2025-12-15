@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { askDeepSeekStream, askGrokStream } from "../lib/api";
+import { askGroqStream } from "../lib/api";  // Importamos solo la función de Groq
 import "./Chat.css";
 
 import { 
@@ -15,15 +15,14 @@ export default function Chat({ setView }) {
   const [editingId, setEditingId] = useState(null);
   const [newName, setNewName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(null);
+  const [menuOpen, setMenuOpen] = null;
   const [isScraping, setIsScraping] = useState(false);
 
   // Estado único de configuración
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
-    model: "Baldionna-ia A1",
-    enableReasoning: true // Nueva opción para habilitar razonamiento en Grok
+    model: "llama3-70b-8192", // Modelo por defecto de Groq
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -188,56 +187,30 @@ export default function Chat({ setView }) {
       .map(m => ({ role: m.sender === "user" ? "user" : "assistant", content: m.text }));
 
     try {
-      // Determinar qué API usar según el modelo seleccionado
-      if (settings.model === "Grok 4.1 Fast") {
-        await askGrokStream(
-          text,
-          (chunk, reasoningDetails) => {
-            setChats((prevChats) => {
-              const newChats = prevChats.map((chat) => {
-                if (chat.id === activeChat) {
-                  const updated = [...chat.messages];
-                  updated[botIndex] = {
-                    sender: "bot",
-                    text: (updated[botIndex]?.text || "") + chunk,
-                    reasoningDetails: reasoningDetails || updated[botIndex]?.reasoningDetails
-                  };
-                  return { ...chat, messages: updated };
-                }
-                return chat;
-              });
-              localStorage.setItem("chats", JSON.stringify(newChats));
-              return newChats;
+      // Usar Groq para todos los modelos
+      await askGroqStream(
+        text,
+        (chunk) => {
+          setChats((prevChats) => {
+            const newChats = prevChats.map((chat) => {
+              if (chat.id === activeChat) {
+                const updated = [...chat.messages];
+                updated[botIndex] = {
+                  sender: "bot",
+                  text: (updated[botIndex]?.text || "") + chunk
+                };
+                return { ...chat, messages: updated };
+              }
+              return chat;
             });
-          },
-          abortControllerRef.current.signal,
-          settings.enableReasoning,
-          messagesForContext.slice(0, -1) // Excluir el último mensaje del usuario ya que se pasa como prompt
-        );
-      } else {
-        // Usar DeepSeek para otros modelos
-        await askDeepSeekStream(
-          text,
-          (chunk) => {
-            setChats((prevChats) => {
-              const newChats = prevChats.map((chat) => {
-                if (chat.id === activeChat) {
-                  const updated = [...chat.messages];
-                  updated[botIndex] = {
-                    sender: "bot",
-                    text: (updated[botIndex]?.text || "") + chunk
-                  };
-                  return { ...chat, messages: updated };
-                }
-                return chat;
-              });
-              localStorage.setItem("chats", JSON.stringify(newChats));
-              return newChats;
-            });
-          },
-          abortControllerRef.current.signal
-        );
-      }
+            localStorage.setItem("chats", JSON.stringify(newChats));
+            return newChats;
+          });
+        },
+        abortControllerRef.current.signal,
+        settings.model,
+        messagesForContext.slice(0, -1) // Excluir el último mensaje del usuario ya que se pasa como prompt
+      );
     } catch (err) {
       console.error("Error en la llamada a la API:", err);
       setChats((prevChats) =>
@@ -532,55 +505,29 @@ export default function Chat({ setView }) {
       }
       abortControllerRef.current = new AbortController();
 
-      // Determinar qué API usar según el modelo seleccionado
-      if (settings.model === "Grok 4.1 Fast") {
-        await askGrokStream(
-          modelPrompt,
-          (chunk, reasoningDetails) => {
-            setChats((prevChats) => {
-              const newChats = prevChats.map((chat) => {
-                if (chat.id === activeChat) {
-                  const updated = [...chat.messages];
-                  updated[botIndex] = {
-                    sender: "bot",
-                    text: (updated[botIndex]?.text || "") + chunk,
-                    reasoningDetails: reasoningDetails || updated[botIndex]?.reasoningDetails
-                  };
-                  return { ...chat, messages: updated };
-                }
-                return chat;
-              });
-              localStorage.setItem("chats", JSON.stringify(newChats));
-              return newChats;
+      // Usar Groq para procesar y mostrar el resultado
+      await askGroqStream(
+        modelPrompt,
+        (chunk) => {
+          setChats((prevChats) => {
+            const newChats = prevChats.map((chat) => {
+              if (chat.id === activeChat) {
+                const updated = [...chat.messages];
+                updated[botIndex] = {
+                  sender: "bot",
+                  text: (updated[botIndex]?.text || "") + chunk
+                };
+                return { ...chat, messages: updated };
+              }
+              return chat;
             });
-          },
-          abortControllerRef.current.signal,
-          settings.enableReasoning
-        );
-      } else {
-        // Usar DeepSeek para otros modelos
-        await askDeepSeekStream(
-          modelPrompt,
-          (chunk) => {
-            setChats((prevChats) => {
-              const newChats = prevChats.map((chat) => {
-                if (chat.id === activeChat) {
-                  const updated = [...chat.messages];
-                  updated[botIndex] = {
-                    sender: "bot",
-                    text: (updated[botIndex]?.text || "") + chunk
-                  };
-                  return { ...chat, messages: updated };
-                }
-                return chat;
-              });
-              localStorage.setItem("chats", JSON.stringify(newChats));
-              return newChats;
-            });
-          },
-          abortControllerRef.current.signal
-        );
-      }
+            localStorage.setItem("chats", JSON.stringify(newChats));
+            return newChats;
+          });
+        },
+        abortControllerRef.current.signal,
+        settings.model
+      );
 
       console.log("✅ Búsqueda híbrida completada");
 
@@ -700,7 +647,7 @@ export default function Chat({ setView }) {
             </button>
           </div>
 
-          {/* 3. AÑADE EL NUEVO BOTÓN AQUÍ */}
+          {/* Botón para Aura */}
           <div className="sidebar-footer1">
             <button onClick={() => setView('aura')} title="Ir al Triage Médico Aura">
               <Activity size={17} /> Aura
@@ -756,18 +703,7 @@ export default function Chat({ setView }) {
           {currentChat?.messages.map((m, i) => (
             <div key={i} className={`message ${m.sender === "user" ? "user" : "bot"}`}>
               {m.sender === "bot" ? (
-                <div>
-                  {/* Mostrar detalles de razonamiento si están disponibles */}
-                  {m.reasoningDetails && settings.model === "Grok 4.1 Fast" && settings.enableReasoning && (
-                    <div className="reasoning-details">
-                      <details>
-                        <summary>Razonamiento del modelo</summary>
-                        <pre>{JSON.stringify(m.reasoningDetails, null, 2)}</pre>
-                      </details>
-                    </div>
-                  )}
-                  <div dangerouslySetInnerHTML={{ __html: parseMarkdown(m.text) }} />
-                </div>
+                <div dangerouslySetInnerHTML={{ __html: parseMarkdown(m.text) }} />
               ) : (
                 m.text
               )}
@@ -855,37 +791,29 @@ export default function Chat({ setView }) {
             <h3>Modelos disponibles</h3>
 
             <div className="model-slider">
-              {["Baldionna-ia A1", "Baldionna-ia A2", "B-IA", "Grok 4.1 Fast"].map((model) => (
+              {[
+                { id: "llama3-70b-8192", name: "Llama 3 70B" },
+                { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+                { id: "gemma-7b-it", name: "Gemma 7B" }
+              ].map((model) => (
                 <div
-                  key={model}
-                  className={`model-option ${settings.model === model ? "active" : ""}`}
-                  onClick={() => setSettings((prev) => ({ ...prev, model }))}
+                  key={model.id}
+                  className={`model-option ${settings.model === model.id ? "active" : ""}`}
+                  onClick={() => setSettings((prev) => ({ ...prev, model: model.id }))}
                 >
-                  {model}
+                  {model.name}
                 </div>
               ))}
             </div>
 
             <p className="model-info">
-              Modelo actual: <strong>{settings.model}</strong>
+              Modelo actual: <strong>{
+                settings.model === "llama3-70b-8192" ? "Llama 3 70B" :
+                settings.model === "mixtral-8x7b-32768" ? "Mixtral 8x7B" :
+                settings.model === "gemma-7b-it" ? "Gemma 7B" :
+                settings.model
+              }</strong>
             </p>
-
-            {/* Opción de 0azonamiento para Grok */}
-            {settings.model === "Grok 4.1 Fast" && (
-              <div className="settings-row">
-                <span>Habilitar razonamiento</span>
-                <button
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      enableReasoning: !prev.enableReasoning,
-                    }))
-                  }
-                >
-                  {settings.enableReasoning ? "Desactivar" : "Activar"}
-                </button>
-              </div>
-            )}
 
             <div className="settings-footer">
               <button onClick={() => setModelsOpen(false)}>Cerrar</button>
