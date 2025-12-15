@@ -15,7 +15,7 @@ export default function Chat({ setView }) {
   const [editingId, setEditingId] = useState(null);
   const [newName, setNewName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [menuOpen, setMenuOpen] = null;
+  const [menuOpen, setMenuOpen] = useState(null); // CORREGIDO: Añadido useState
   const [isScraping, setIsScraping] = useState(false);
 
   // Estado único de configuración
@@ -49,16 +49,32 @@ export default function Chat({ setView }) {
   useEffect(() => {
     const savedChats = localStorage.getItem("chats");
     if (savedChats) {
-      const parsed = JSON.parse(savedChats);
-      setChats(parsed);
-      if (parsed.length > 0) setActiveChat(parsed[0].id);
+      try {
+        const parsed = JSON.parse(savedChats);
+        // Asegurarse de que parsed sea un array
+        if (Array.isArray(parsed)) {
+          setChats(parsed);
+          if (parsed.length > 0) setActiveChat(parsed[0].id);
+        } else {
+          console.error("Los datos de chats no son un array válido");
+          createChat();
+        }
+      } catch (error) {
+        console.error("Error al parsear los chats guardados:", error);
+        createChat();
+      }
     } else {
       createChat();
     }
 
     const savedSettings = localStorage.getItem("settings");
     if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
+      try {
+        const parsedSettings = JSON.parse(savedSettings);
+        setSettings(parsedSettings);
+      } catch (error) {
+        console.error("Error al parsear la configuración guardada:", error);
+      }
     }
   }, []);
 
@@ -182,9 +198,12 @@ export default function Chat({ setView }) {
 
     // Obtener historial de mensajes para el contexto
     const currentChat = updatedChats.find(c => c.id === activeChat);
-    const messagesForContext = currentChat.messages
-      .filter(m => m.sender !== "bot" || m.text.trim() !== "")
-      .map(m => ({ role: m.sender === "user" ? "user" : "assistant", content: m.text }));
+    // CORREGIDO: Añadida comprobación para asegurar que currentChat y currentChat.messages existen
+    const messagesForContext = currentChat && currentChat.messages
+      ? currentChat.messages
+        .filter(m => m.sender !== "bot" || m.text.trim() !== "")
+        .map(m => ({ role: m.sender === "user" ? "user" : "assistant", content: m.text }))
+      : [];
 
     try {
       // Usar Groq para todos los modelos
@@ -700,7 +719,7 @@ export default function Chat({ setView }) {
         )}
 
         <div ref={listRef} className="chat-box" aria-live="polite">
-          {currentChat?.messages.map((m, i) => (
+          {currentChat?.messages && currentChat.messages.map((m, i) => (
             <div key={i} className={`message ${m.sender === "user" ? "user" : "bot"}`}>
               {m.sender === "bot" ? (
                 <div dangerouslySetInnerHTML={{ __html: parseMarkdown(m.text) }} />
