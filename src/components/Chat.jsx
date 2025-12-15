@@ -22,7 +22,7 @@ export default function Chat({ setView }) {
   const [settings, setSettings] = useState({
     theme: "light",
     inputPosition: "top",
-    model: "llama3-8b-8192", // Modelo por defecto de Groq
+    model: "qwen/qwen3-32b", // Modelo por defecto actualizado
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -811,10 +811,9 @@ export default function Chat({ setView }) {
 
             <div className="model-slider">
               {[
-                { id: "llama3-8b-8192", name: "Llama 3 8B" },
-                { id: "llama3-groq-70b-8192", name: "Llama 3 Groq 70B" },
-                { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
-                { id: "gemma-7b-it", name: "Gemma 7B" },
+                { id: "qwen/qwen3-32b", name: "Qwen 3 32B" },
+                { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" },
+                { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick 17B" },
                 { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" }
               ].map((model) => (
                 <div
@@ -829,10 +828,9 @@ export default function Chat({ setView }) {
 
             <p className="model-info">
               Modelo actual: <strong>{
-                settings.model === "llama3-8b-8192" ? "Llama 3 8B" :
-                settings.model === "llama3-groq-70b-8192" ? "Llama 3 Groq 70B" :
-                settings.model === "mixtral-8x7b-32768" ? "Mixtral 8x7B" :
-                settings.model === "gemma-7b-it" ? "Gemma 7B" :
+                settings.model === "qwen/qwen3-32b" ? "Qwen 3 32B" :
+                settings.model === "llama-3.3-70b-versatile" ? "Llama 3.3 70B Versatile" :
+                settings.model === "meta-llama/llama-4-maverick-17b-128e-instruct" ? "Llama 4 Maverick 17B" :
                 settings.model === "openai/gpt-oss-120b" ? "GPT-OSS 120B" :
                 settings.model
               }</strong>
