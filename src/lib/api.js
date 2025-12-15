@@ -28,23 +28,23 @@ export const saveTriageData = async (data) => {
 };
 
 // =================================================================
-// LLAMADA A API DE GROQ (STREAMING)
+// LLAMADA A API DE GROQ (STREAMING) - SOLO CON MODELO openai/gpt-oss-120b
 // =================================================================
 
 /**
- * Realiza una llamada a la API de Groq con streaming.
+ * Realiza una llamada a la API de Groq con streaming usando el modelo openai/gpt-oss-120b.
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
- * @param {string} model - Modelo de Groq a utilizar (por defecto: llama3-70b-8192)
+ * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará openai/gpt-oss-120b).
  * @param {Array} messages - Historial de conversación para mantener contexto.
  */
-export async function askGroqStream(prompt, onChunk, signal, model = "llama3-70b-8192", messages = []) {
+export async function askGroqStream(prompt, onChunk, signal, model = "openai/gpt-oss-120b", messages = []) {
   const API_URL = "https://api.groq.com/openai/v1/chat/completions";
   // IMPORTANTE: En producción, usa variables de entorno para la API key
   const API_KEY = import.meta.env.VITE_GROQ_API_KEY || "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";
 
-  console.log("Enviando prompt a Groq...");
+  console.log("Enviando prompt a Groq con modelo openai/gpt-oss-120b...");
 
   if (!API_KEY) {
     throw new Error("No se encontró la API key para Groq. Revisa tu configuración.");
@@ -83,11 +83,15 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
     { role: "user", content: prompt }
   ];
 
+  // Usar siempre el modelo openai/gpt-oss-120b con los parámetros especificados
   const body = {
-    model: model,
+    model: "openai/gpt-oss-120b",
+    temperature: 1,
+    max_completion_tokens: 8192,
+    top_p: 1,
     stream: true,
-    max_tokens: 8000,
-    temperature: 0.7,
+    reasoning_effort: "medium",
+    stop: null,
     messages: apiMessages,
   };
 
@@ -157,7 +161,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
  */
 export async function askDeepSeekStream(prompt, onChunk, signal) {
   // Redirigimos a la nueva función de Groq
-  return askGroqStream(prompt, onChunk, signal, "llama3-70b-8192", []);
+  return askGroqStream(prompt, onChunk, signal, "openai/gpt-oss-120b", []);
 }
 
 /**
@@ -170,5 +174,5 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
  */
 export async function askGrokStream(prompt, onChunk, signal, enableReasoning = true, messages = []) {
   // Redirigimos a la nueva función de Groq
-  return askGroqStream(prompt, onChunk, signal, "mixtral-8x7b-32768", messages);
+  return askGroqStream(prompt, onChunk, signal, "openai/gpt-oss-120b", messages);
 }
