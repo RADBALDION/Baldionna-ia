@@ -1,5 +1,4 @@
 import CryptoJS from 'crypto-js';
-import { OpenRouter } from "@openrouter/sdk";
 
 // =================================================================
 // GUARDADO DE DATOS DE TRIAJE (LOCAL Y CIFRADO)
@@ -41,6 +40,7 @@ export const saveTriageData = async (data) => {
  * @param {Array} messages - Historial de conversación para mantener contexto.
  */
 export async function askGroqStream(prompt, onChunk, signal, model = "z-ai/glm-4.5-air:free", messages = []) {
+  const API_URL = "https://openrouter.ai/api/v1/chat/completions";
   // IMPORTANTE: En producción, usa variables de entorno para la API key
   const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "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";
 
@@ -49,11 +49,6 @@ export async function askGroqStream(prompt, onChunk, signal, model = "z-ai/glm-4
   if (!API_KEY) {
     throw new Error("No se encontró la API key para OpenRouter. Revisa tu configuración.");
   }
-
-  // Inicializar el cliente de OpenRouter
-  const openrouter = new OpenRouter({
-    apiKey: API_KEY
-  });
 
   // Preparar mensajes para la API
   const apiMessages = [
@@ -89,27 +84,65 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
   ];
 
   // Usar siempre el modelo z-ai/glm-4.5-air:free
+  const body = {
+    model: "z-ai/glm-4.5-air:free",
+    temperature: 1,
+    max_tokens: 8192,
+    top_p: 1,
+    stream: true,
+    messages: apiMessages,
+  };
+
   try {
-    const stream = await openrouter.chat.send({
-      model: "z-ai/glm-4.5-air:free",
-      messages: apiMessages,
-      stream: true
+    const resp = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "BALDIONNA-ai"
+      },
+      body: JSON.stringify(body),
+      signal,
     });
 
-    // Procesar el stream y llamar a onChunk con cada fragmento
-    for await (const chunk of stream) {
-      // Verificar si la señal de aborto ha sido activada
-      if (signal && signal.aborted) {
-        throw new Error('AbortError');
-      }
-      
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        onChunk(content);
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error("Error en la respuesta de OpenRouter:", errorText);
+      throw new Error(`Error ${resp.status}: ${errorText}`);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine === "" || !trimmedLine.startsWith("data:")) continue;
+        if (trimmedLine === "data: [DONE]") return;
+
+        const jsonData = trimmedLine.replace("data: ", "");
+        try {
+          const parsed = JSON.parse(jsonData);
+          const chunk = parsed.choices?.[0]?.delta?.content;
+          if (chunk) {
+            onChunk(chunk);
+          }
+        } catch (e) {
+          console.warn("Error parseando chunk de la API:", e);
+        }
       }
     }
   } catch (error) {
-    if (error.name !== 'AbortError' && error.message !== 'AbortError') {
+    if (error.name !== 'AbortError') {
       console.error("Error en la llamada a OpenRouter:", error);
     }
     throw error;
