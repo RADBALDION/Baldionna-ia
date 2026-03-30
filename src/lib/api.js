@@ -46,7 +46,7 @@ export async function askGroqStream(prompt, onChunk, signal, model = "nvidia/nem
   // La aplicación no funcionará si esta variable no está configurada.
   const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 
-  console.log("Enviando prompt a OpenRouter con modelo nvidia/nemotron-3-super-120b-a12b:free...");
+  console.log("Enviando prompt a BALDIONNA AI...");
 
   // Mensaje de error mejorado para guiar al usuario en la configuración.
   if (!API_KEY) {
