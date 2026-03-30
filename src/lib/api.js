@@ -28,25 +28,25 @@ export const saveTriageData = async (data) => {
 };
 
 // =================================================================
-// LLAMADA A API DE OPENROUTER (STREAMING) - MODELO z-ai/glm-4.5-air:free
+// LLAMADA A API DE OPENROUTER (STREAMING) - MODELO nvidia/nemotron-3-super-120b-a12b:free
 // =================================================================
 
 /**
- * Realiza una llamada a la API de OpenRouter con streaming usando el modelo z-ai/glm-4.5-air:free.
+ * Realiza una llamada a la API de OpenRouter con streaming usando el modelo nvidia/nemotron-3-super-120b-a12b:free.
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
- * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará z-ai/glm-4.5-air:free).
+ * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará nvidia/nemotron-3-super-120b-a12b:free).
  * @param {Array} messages - Historial de conversación para mantener contexto.
  */
-export async function askGroqStream(prompt, onChunk, signal, model = "z-ai/glm-4.5-air:free", messages = []) {
+export async function askGroqStream(prompt, onChunk, signal, model = "nvidia/nemotron-3-super-120b-a12b:free", messages = []) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
   
   // La clave de API ahora se obtiene EXCLUSIVAMENTE de la variable de entorno.
   // La aplicación no funcionará si esta variable no está configurada.
   const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 
-  console.log("Enviando prompt a OpenRouter con modelo z-ai/glm-4.5-air:free...");
+  console.log("Enviando prompt a OpenRouter con modelo nvidia/nemotron-3-super-120b-a12b:free...");
 
   // Mensaje de error mejorado para guiar al usuario en la configuración.
   if (!API_KEY) {
@@ -89,9 +89,9 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
     { role: "user", content: prompt }
   ];
 
-  // Usar siempre el modelo z-ai/glm-4.5-air:free
+  // Usar siempre el modelo nvidia/nemotron-3-super-120b-a12b:free
   const body = {
-    model: "z-ai/glm-4.5-air:free",
+    model: "nvidia/nemotron-3-super-120b-a12b:free",
     temperature: 1,
     max_tokens: 8192,
     top_p: 1,
