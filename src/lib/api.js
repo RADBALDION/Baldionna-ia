@@ -1,4 +1,5 @@
 import CryptoJS from 'crypto-js';
+import { OpenRouter } from "@openrouter/sdk";
 
 // =================================================================
 // GUARDADO DE DATOS DE TRIAJE (LOCAL Y CIFRADO)
@@ -28,27 +29,31 @@ export const saveTriageData = async (data) => {
 };
 
 // =================================================================
-// LLAMADA A API DE GROQ (STREAMING) - SOLO CON MODELO openai/gpt-oss-120b
+// LLAMADA A API DE OPENROUTER (STREAMING) - MODELO z-ai/glm-4.5-air:free
 // =================================================================
 
 /**
- * Realiza una llamada a la API de Groq con streaming usando el modelo openai/gpt-oss-120b.
+ * Realiza una llamada a la API de OpenRouter con streaming usando el modelo z-ai/glm-4.5-air:free.
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
- * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará openai/gpt-oss-120b).
+ * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará z-ai/glm-4.5-air:free).
  * @param {Array} messages - Historial de conversación para mantener contexto.
  */
-export async function askGroqStream(prompt, onChunk, signal, model = "openai/gpt-oss-120b", messages = []) {
-  const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+export async function askGroqStream(prompt, onChunk, signal, model = "z-ai/glm-4.5-air:free", messages = []) {
   // IMPORTANTE: En producción, usa variables de entorno para la API key
-  const API_KEY = import.meta.env.VITE_GROQ_API_KEY || "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";
+  const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "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";
 
-  console.log("Enviando prompt a Groq con modelo openai/gpt-oss-120b...");
+  console.log("Enviando prompt a OpenRouter con modelo z-ai/glm-4.5-air:free...");
 
   if (!API_KEY) {
-    throw new Error("No se encontró la API key para Groq. Revisa tu configuración.");
+    throw new Error("No se encontró la API key para OpenRouter. Revisa tu configuración.");
   }
+
+  // Inicializar el cliente de OpenRouter
+  const openrouter = new OpenRouter({
+    apiKey: API_KEY
+  });
 
   // Preparar mensajes para la API
   const apiMessages = [
@@ -83,67 +88,29 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
     { role: "user", content: prompt }
   ];
 
-  // Usar siempre el modelo openai/gpt-oss-120b con los parámetros especificados
-  const body = {
-    model: "openai/gpt-oss-120b",
-    temperature: 1,
-    max_completion_tokens: 8192,
-    top_p: 1,
-    stream: true,
-    reasoning_effort: "medium",
-    stop: null,
-    messages: apiMessages,
-  };
-
+  // Usar siempre el modelo z-ai/glm-4.5-air:free
   try {
-    const resp = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal,
+    const stream = await openrouter.chat.send({
+      model: "z-ai/glm-4.5-air:free",
+      messages: apiMessages,
+      stream: true
     });
 
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      console.error("Error en la respuesta de Groq:", errorText);
-      throw new Error(`Error ${resp.status}: ${errorText}`);
-    }
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine === "" || !trimmedLine.startsWith("data:")) continue;
-        if (trimmedLine === "data: [DONE]") return;
-
-        const jsonData = trimmedLine.replace("data: ", "");
-        try {
-          const parsed = JSON.parse(jsonData);
-          const chunk = parsed.choices?.[0]?.delta?.content;
-          if (chunk) {
-            onChunk(chunk);
-          }
-        } catch (e) {
-          console.warn("Error parseando chunk de la API:", e);
-        }
+    // Procesar el stream y llamar a onChunk con cada fragmento
+    for await (const chunk of stream) {
+      // Verificar si la señal de aborto ha sido activada
+      if (signal && signal.aborted) {
+        throw new Error('AbortError');
+      }
+      
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        onChunk(content);
       }
     }
   } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error("Error en la llamada a Groq:", error);
+    if (error.name !== 'AbortError' && error.message !== 'AbortError') {
+      console.error("Error en la llamada a OpenRouter:", error);
     }
     throw error;
   }
@@ -154,25 +121,25 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
 // =================================================================
 
 /**
- * Realiza una llamada a la API de Groq (función de compatibilidad).
+ * Realiza una llamada a la API de OpenRouter (función de compatibilidad).
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
  */
 export async function askDeepSeekStream(prompt, onChunk, signal) {
-  // Redirigimos a la nueva función de Groq
-  return askGroqStream(prompt, onChunk, signal, "openai/gpt-oss-120b", []);
+  // Redirigimos a la nueva función de OpenRouter
+  return askGroqStream(prompt, onChunk, signal, "z-ai/glm-4.5-air:free", []);
 }
 
 /**
- * Realiza una llamada a la API de Groq (función de compatibilidad).
+ * Realiza una llamada a la API de OpenRouter (función de compatibilidad).
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
- * @param {boolean} enableReasoning - Parámetro mantenido por compatibilidad (no usado en Groq).
+ * @param {boolean} enableReasoning - Parámetro mantenido por compatibilidad (no usado en OpenRouter).
  * @param {Array} messages - Historial de conversación para mantener contexto.
  */
 export async function askGrokStream(prompt, onChunk, signal, enableReasoning = true, messages = []) {
-  // Redirigimos a la nueva función de Groq
-  return askGroqStream(prompt, onChunk, signal, "openai/gpt-oss-120b", messages);
+  // Redirigimos a la nueva función de OpenRouter
+  return askGroqStream(prompt, onChunk, signal, "z-ai/glm-4.5-air:free", messages);
 }
