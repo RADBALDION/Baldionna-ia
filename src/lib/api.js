@@ -41,13 +41,19 @@ export const saveTriageData = async (data) => {
  */
 export async function askGroqStream(prompt, onChunk, signal, model = "z-ai/glm-4.5-air:free", messages = []) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-  // IMPORTANTE: En producción, usa variables de entorno para la API key
-  const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "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";
+  
+  // La clave de API ahora se obtiene EXCLUSIVAMENTE de la variable de entorno.
+  // La aplicación no funcionará si esta variable no está configurada.
+  const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 
   console.log("Enviando prompt a OpenRouter con modelo z-ai/glm-4.5-air:free...");
 
+  // Mensaje de error mejorado para guiar al usuario en la configuración.
   if (!API_KEY) {
-    throw new Error("No se encontró la API key para OpenRouter. Revisa tu configuración.");
+    throw new Error(
+      "FATAL: No se encontró la variable de entorno VITE_OPENROUTER_API_KEY. " +
+      "Asegúrate de configurarla en tu archivo .env para desarrollo local y en los ajustes de tu sitio de Netlify para producción."
+    );
   }
 
   // Preparar mensajes para la API
