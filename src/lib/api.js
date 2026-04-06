@@ -28,18 +28,18 @@ export const saveTriageData = async (data) => {
 };
 
 // =================================================================
-// LLAMADA A API DE OPENROUTER (STREAMING) - MODELO nvidia/nemotron-3-super-120b-a12b:free
+// LLAMADA A API DE OPENROUTER (STREAMING) - MODELO qwen/qwen3.6-plus:free
 // =================================================================
 
 /**
- * Realiza una llamada a la API de OpenRouter con streaming usando el modelo nvidia/nemotron-3-super-120b-a12b:free.
+ * Realiza una llamada a la API de OpenRouter con streaming usando el modelo qwen/qwen3.6-plus:free.
  * @param {string} prompt - El mensaje o pregunta del usuario.
  * @param {function(string): void} onChunk - Función callback que se ejecuta con cada fragmento de la respuesta.
  * @param {AbortSignal} signal - Señal para poder cancelar la petición fetch.
- * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará nvidia/nemotron-3-super-120b-a12b:free).
+ * @param {string} model - Parámetro mantenido por compatibilidad (siempre se usará qwen/qwen3.6-plus:free).
  * @param {Array} messages - Historial de conversación para mantener contexto.
  */
-export async function askGroqStream(prompt, onChunk, signal, model = "nvidia/nemotron-3-super-120b-a12b:free", messages = []) {
+export async function askGroqStream(prompt, onChunk, signal, model = "qwen/qwen3.6-plus:free", messages = []) {
   const API_URL = "https://openrouter.ai/api/v1/chat/completions";
   
   // La clave de API ahora se obtiene EXCLUSIVAMENTE de la variable de entorno.
@@ -91,7 +91,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
 
   // Usar siempre el modelo nvidia/nemotron-3-super-120b-a12b:free
   const body = {
-    model: "nvidia/nemotron-3-super-120b-a12b:free",
+    model: "qwen/qwen3.6-plus:free",
     temperature: 1,
     max_tokens: 8192,
     top_p: 1,
@@ -167,7 +167,7 @@ Combinas el alma humana con el pensamiento lógico. Eres BALDIONNA-ai — una IA
  */
 export async function askDeepSeekStream(prompt, onChunk, signal) {
   // Redirigimos a la nueva función de OpenRouter
-  return askGroqStream(prompt, onChunk, signal, "z-ai/glm-4.5-air:free", []);
+  return askGroqStream(prompt, onChunk, signal, "qwen/qwen3.6-plus:free", []);
 }
 
 /**
@@ -180,5 +180,5 @@ export async function askDeepSeekStream(prompt, onChunk, signal) {
  */
 export async function askGrokStream(prompt, onChunk, signal, enableReasoning = true, messages = []) {
   // Redirigimos a la nueva función de OpenRouter
-  return askGroqStream(prompt, onChunk, signal, "z-ai/glm-4.5-air:free", messages);
+  return askGroqStream(prompt, onChunk, signal, "qwen/qwen3.6-plus:free", messages);
 }
